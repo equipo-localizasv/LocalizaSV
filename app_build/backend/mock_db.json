@@ -1,0 +1,30 @@
+{
+  "usuarios": [
+    {
+      "id": 1,
+      "nombre": "Jose Daniel Mejia Vanegas",
+      "dui": "00251536-9",
+      "email": "mvanegasjdaniel@gmail.com",
+      "telefono": "6961-7897",
+      "password_hash": "$2a$10$D3y7Gp9LeLNaIJxxl0WcVeqHZQB/9vJjr/iH.y5sle4oGJR.NfvOi",
+      "selfie_url": "/uploads/selfie-1784267763279-96526501.jpeg",
+      "created_at": "2026-07-17T05:56:03.611Z"
+    }
+  ],
+  "casos": [
+    {
+      "id": 1,
+      "usuario_id": 1,
+      "nombre_desaparecido": "Antonio Steven lopez",
+      "edad": 26,
+      "genero": "Masculino",
+      "fecha_desaparicion": "2000-12-03",
+      "ubicacion_desaparicion": "ahucapan norte,atiquizaya",
+      "descripcion": "tiene cara de maloso",
+      "telefono_contacto": "6961-7897",
+      "foto_url": "/uploads/foto-1784267936998-140957392.jpeg",
+      "estado": "Desaparecido",
+      "created_at": "2026-07-17T05:58:57.009Z"
+    }
+  ]
+}
