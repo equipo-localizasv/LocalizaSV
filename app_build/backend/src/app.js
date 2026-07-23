@@ -7,6 +7,8 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
 const caseRoutes = require('./routes/caseRoutes');
+const detectionRoutes = require('./routes/detectionRoutes');
+const alertRoutes = require('./routes/alertRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -28,6 +30,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
+app.use('/api/detecciones', detectionRoutes);
+app.use('/api/alertas', alertRoutes);
 
 // Base route for API status check
 app.get('/', (req, res) => {

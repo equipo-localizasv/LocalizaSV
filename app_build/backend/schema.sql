@@ -25,3 +25,15 @@ CREATE TABLE IF NOT EXISTS casos (
     foto_url VARCHAR(512) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS alertas (
+    id SERIAL PRIMARY KEY,
+    caso_id INT REFERENCES casos(id) ON DELETE CASCADE NOT NULL,
+    ubicacion_lat DECIMAL(10, 8) NOT NULL,
+    ubicacion_lng DECIMAL(11, 8) NOT NULL,
+    porcentaje_confianza DECIMAL(5, 2) NOT NULL,
+    video_url VARCHAR(512),
+    foto_evidencia_url VARCHAR(512),
+    estado VARCHAR(50) DEFAULT 'pendiente' NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

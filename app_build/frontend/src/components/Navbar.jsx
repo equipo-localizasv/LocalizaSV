@@ -26,6 +26,9 @@ const Navbar = () => {
         <Link to="/" className="navbar-item">
           Dashboard
         </Link>
+        <Link to="/moderacion" className="navbar-item">
+          Moderación
+        </Link>
         {user ? (
           <>
             <Link to="/reportar" className="navbar-item">

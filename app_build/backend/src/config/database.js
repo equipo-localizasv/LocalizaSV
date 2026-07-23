@@ -31,9 +31,13 @@ if (!fs.existsSync(mockFilePath)) {
 const readMockDb = () => {
   try {
     const data = fs.readFileSync(mockFilePath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed.usuarios) parsed.usuarios = [];
+    if (!parsed.casos) parsed.casos = [];
+    if (!parsed.alertas) parsed.alertas = [];
+    return parsed;
   } catch (err) {
-    return { usuarios: [], casos: [] };
+    return { usuarios: [], casos: [], alertas: [] };
   }
 };
 
@@ -194,6 +198,59 @@ const mockQuery = (text, params = []) => {
       db.casos[idx].estado = estado;
       writeMockDb(db);
       return { rows: [db.casos[idx]] };
+    }
+    return { rows: [] };
+  }
+
+  // 10. SELECT id FROM casos WHERE id = $1
+  if (normalizedText.includes('SELECT id FROM casos WHERE id = $1')) {
+    const [id] = params;
+    const found = db.casos.filter(c => c.id === parseInt(id));
+    return { rows: found };
+  }
+
+  // 11. INSERT INTO alertas
+  if (normalizedText.includes('INSERT INTO alertas')) {
+    const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, estado] = params;
+    const newAlert = {
+      id: db.alertas.length + 1,
+      caso_id: parseInt(caso_id),
+      ubicacion_lat: parseFloat(ubicacion_lat),
+      ubicacion_lng: parseFloat(ubicacion_lng),
+      porcentaje_confianza: parseFloat(porcentaje_confianza),
+      video_url,
+      foto_evidencia_url,
+      estado,
+      created_at: new Date().toISOString()
+    };
+    db.alertas.push(newAlert);
+    writeMockDb(db);
+    return { rows: [newAlert] };
+  }
+
+  // 12. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos
+  if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'pendiente'")) {
+    const list = db.alertas
+      .filter(a => a.estado === 'pendiente')
+      .map(a => {
+        const caso = db.casos.find(c => c.id === a.caso_id);
+        return {
+          ...a,
+          nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
+        };
+      });
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return { rows: list };
+  }
+
+  // 13. UPDATE alertas SET estado = $1 WHERE id = $2 RETURNING *
+  if (normalizedText.includes('UPDATE alertas SET estado = $1 WHERE id = $2')) {
+    const [estado, id] = params;
+    const idx = db.alertas.findIndex(a => a.id === parseInt(id));
+    if (idx !== -1) {
+      db.alertas[idx].estado = estado;
+      writeMockDb(db);
+      return { rows: [db.alertas[idx]] };
     }
     return { rows: [] };
   }

@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import CreateCase from './pages/CreateCase';
 import CaseDetail from './pages/CaseDetail';
+import ModeratorPanel from './pages/ModeratorPanel';
 
 export const AuthContext = createContext(null);
 
@@ -79,6 +80,7 @@ const App = () => {
                 element={user ? <CreateCase /> : <Navigate to="/login" replace />} 
               />
               <Route path="/caso/:id" element={<CaseDetail />} />
+              <Route path="/moderacion" element={<ModeratorPanel />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

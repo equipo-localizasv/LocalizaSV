@@ -26,5 +26,18 @@
       "estado": "Desaparecido",
       "created_at": "2026-07-17T05:58:57.009Z"
     }
+  ],
+  "alertas": [
+    {
+      "id": 1,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 88.5,
+      "video_url": null,
+      "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
+      "estado": "pendiente",
+      "created_at": "2026-07-22T17:09:57.858Z"
+    }
   ]
 }
