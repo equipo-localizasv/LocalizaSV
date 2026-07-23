@@ -32,11 +32,17 @@ const createDetection = async (req, res) => {
       });
     }
 
-    // 3. Create a record in the Alertas table with state 'pendiente'
+    // 3. Obtener el ID del estado 'Pendiente'
+    const statusResult = await db.query(
+      "SELECT id FROM estados_alerta WHERE nombre = 'Pendiente'"
+    );
+    const id_estado_alerta = statusResult.rows[0]?.id || 1;
+
+    // 4. Create a record in the Alertas table
     const insertResult = await db.query(
       `INSERT INTO alertas (
         caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, 
-        video_url, foto_evidencia_url, estado
+        video_url, foto_evidencia_url, id_estado_alerta
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *`,
       [
@@ -46,14 +52,18 @@ const createDetection = async (req, res) => {
         parseFloat(porcentaje_confianza),
         video_url || null,
         foto_evidencia_url || null,
-        'pendiente'
+        id_estado_alerta
       ]
     );
 
-    // 4. Return the created alert with code 201
+    // Mapear el string estado de vuelta en el json devuelto para mantener compatibilidad
+    const newAlert = insertResult.rows[0];
+    newAlert.estado = 'pendiente';
+
+    // 5. Return the created alert with code 201
     return res.status(201).json({
       message: 'Detección de cámara registrada con éxito.',
-      alerta: insertResult.rows[0]
+      alerta: newAlert
     });
 
   } catch (error) {

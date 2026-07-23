@@ -37,7 +37,8 @@
       "video_url": null,
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "pendiente",
-      "created_at": "2026-07-22T17:09:57.858Z"
+      "id_estado_alerta": 1,
+      "fecha_deteccion": "2026-07-22T17:09:57.858Z"
     }
   ]
 }
