@@ -16,6 +16,22 @@ const getPendingAlerts = async (req, res) => {
   }
 };
 
+const getActiveAlerts = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT a.*, c.nombre_desaparecido 
+       FROM alertas a
+       JOIN casos c ON a.caso_id = c.id
+       WHERE a.estado != 'falso positivo'
+       ORDER BY a.created_at DESC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener alertas activas:', error);
+    return res.status(500).json({ error: 'Ocurrió un error en el servidor al obtener las alertas activas.' });
+  }
+};
+
 const updateAlertStatus = async (req, res) => {
   const { id } = req.params;
   const { estado } = req.body;
@@ -52,5 +68,6 @@ const updateAlertStatus = async (req, res) => {
 
 module.exports = {
   getPendingAlerts,
+  getActiveAlerts,
   updateAlertStatus
 };
