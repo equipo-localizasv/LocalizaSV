@@ -249,6 +249,26 @@ const mockQuery = (text, params = []) => {
   }
 
   // 12. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos
+  if (normalizedText.includes("WHERE LOWER(ea.nombre) != 'falso positivo'")) {
+    const list = db.alertas
+      .filter(a => {
+        if (a.id_estado_alerta !== undefined) {
+          return a.id_estado_alerta !== 3; // 3 is Falso Positivo
+        }
+        return a.estado !== 'falso positivo' && a.estado !== 'falso_positivo';
+      })
+      .map(a => {
+        const caso = db.casos.find(c => c.id === a.caso_id);
+        return {
+          ...a,
+          estado: a.estado || (a.id_estado_alerta === 1 ? 'pendiente' : 'confirmado'),
+          nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
+        };
+      });
+    list.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
+    return { rows: list };
+  }
+
   if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'pendiente'") || 
       (normalizedText.includes('FROM alertas a') && normalizedText.includes('JOIN estados_alerta ea'))) {
     const list = db.alertas

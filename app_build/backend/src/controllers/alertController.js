@@ -1,5 +1,22 @@
 const db = require('../config/database');
 
+const getActiveAlerts = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT a.*, LOWER(ea.nombre) as estado, c.nombre_desaparecido 
+       FROM alertas a
+       JOIN casos c ON a.caso_id = c.id
+       JOIN estados_alerta ea ON a.id_estado_alerta = ea.id
+       WHERE LOWER(ea.nombre) != 'falso positivo'
+       ORDER BY a.fecha_deteccion DESC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener alertas activas:', error);
+    return res.status(500).json({ error: 'Ocurrió un error en el servidor al obtener las alertas activas.' });
+  }
+};
+
 const getPendingAlerts = async (req, res) => {
   try {
     const result = await db.query(
@@ -117,6 +134,7 @@ const updateAlertStatus = async (req, res) => {
 };
 
 module.exports = {
+  getActiveAlerts,
   getPendingAlerts,
   getActiveAlerts,
   updateAlertStatus

@@ -3,6 +3,9 @@ const router = express.Router();
 const alertController = require('../controllers/alertController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
+// Get all active alerts (public or authority)
+router.get('/activas', alertController.getActiveAlerts);
+
 // Get all pending alerts
 router.get('/pendientes', alertController.getPendingAlerts);
 
