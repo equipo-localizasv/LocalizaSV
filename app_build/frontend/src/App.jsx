@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import CreateCase from './pages/CreateCase';
 import CaseDetail from './pages/CaseDetail';
 import ModeratorPanel from './pages/ModeratorPanel';
+import AuthorityPanel from './pages/AuthorityPanel';
 
 export const AuthContext = createContext(null);
 
@@ -81,6 +82,7 @@ const App = () => {
               />
               <Route path="/caso/:id" element={<CaseDetail />} />
               <Route path="/moderacion" element={<ModeratorPanel />} />
+              <Route path="/autoridades" element={<AuthorityPanel />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

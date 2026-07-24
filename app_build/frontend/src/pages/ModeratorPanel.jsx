@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import ActiveAlertsMap from '../components/ActiveAlertsMap';
 
 const ModeratorPanel = () => {
   const [alerts, setAlerts] = useState([]);
@@ -64,6 +65,14 @@ const ModeratorPanel = () => {
         <button onClick={fetchPendingAlerts} className="btn btn-secondary" disabled={loading}>
           🔄 Actualizar
         </button>
+      </div>
+
+      {/* Mapa interactivo de alertas activas */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+          🗺️ Mapa de Alertas Activas
+        </h2>
+        <ActiveAlertsMap />
       </div>
 
       {error && <div className="auth-error text-center mb-4">{error}</div>}

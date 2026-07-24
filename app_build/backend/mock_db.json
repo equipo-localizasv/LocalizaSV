@@ -48,21 +48,6 @@
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "pendiente",
       "created_at": "2026-07-22T17:09:57.858Z"
-    },
-    {
-      "id": 2,
-      "caso_id": 1,
-      "ubicacion_lat": 13.69294,
-      "ubicacion_lng": -89.21819,
-      "porcentaje_confianza": 94,
-      "video_url": null,
-      "foto_evidencia_url": null,
-      "estado": "confirmado",
-      "created_at": "2026-07-24T02:48:08.165Z",
-      "id_estado_alerta": 2,
-      "moderador_id": 2,
-      "fecha_validacion": "2026-07-24T02:48:08.199Z",
-      "comentarios": "Confirmado por patrulla cercana"
     }
   ]
 }

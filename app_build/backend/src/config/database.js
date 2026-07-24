@@ -209,72 +209,83 @@ const mockQuery = (text, params = []) => {
     return { rows: found };
   }
 
-  // 10.5 SELECT id FROM alertas WHERE id = $1
-  if (normalizedText.includes('SELECT id FROM alertas WHERE id = $1')) {
-    const [id] = params;
-    const found = db.alertas.filter(a => a.id === parseInt(id));
-    return { rows: found };
-  }
-
   // 11. INSERT INTO alertas
   if (normalizedText.includes('INSERT INTO alertas')) {
-    const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, estado] = params;
+    const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, id_estado_or_estado] = params;
+    
+    const isNewSchema = normalizedText.includes('id_estado_alerta');
     const newAlert = {
       id: db.alertas.length + 1,
       caso_id: parseInt(caso_id),
       ubicacion_lat: parseFloat(ubicacion_lat),
       ubicacion_lng: parseFloat(ubicacion_lng),
       porcentaje_confianza: parseFloat(porcentaje_confianza),
-      video_url,
-      foto_evidencia_url,
-      estado,
-      created_at: new Date().toISOString()
+      video_url: video_url || null,
+      foto_evidencia_url: foto_evidencia_url || null,
+      fecha_deteccion: new Date().toISOString()
     };
+    
+    if (isNewSchema) {
+      newAlert.id_estado_alerta = parseInt(id_estado_or_estado);
+      newAlert.estado = id_estado_or_estado === 1 ? 'pendiente' : (id_estado_or_estado === 2 ? 'confirmado' : 'falso positivo');
+    } else {
+      newAlert.estado = id_estado_or_estado;
+      newAlert.id_estado_alerta = id_estado_or_estado === 'pendiente' ? 1 : (id_estado_or_estado === 'confirmado' ? 2 : 3);
+    }
+    
     db.alertas.push(newAlert);
     writeMockDb(db);
     return { rows: [newAlert] };
   }
 
   // 12. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos
-  if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'pendiente'")) {
+  if (normalizedText.includes("WHERE LOWER(ea.nombre) != 'falso positivo'")) {
     const list = db.alertas
-      .filter(a => a.estado === 'pendiente')
+      .filter(a => {
+        if (a.id_estado_alerta !== undefined) {
+          return a.id_estado_alerta !== 3; // 3 is Falso Positivo
+        }
+        return a.estado !== 'falso positivo' && a.estado !== 'falso_positivo';
+      })
       .map(a => {
         const caso = db.casos.find(c => c.id === a.caso_id);
         return {
           ...a,
+          estado: a.estado || (a.id_estado_alerta === 1 ? 'pendiente' : 'confirmado'),
           nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
         };
       });
-    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    list.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
     return { rows: list };
   }
 
-  // 12.5 SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos WHERE a.estado = 'confirmado'
-  if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'confirmado'")) {
+  if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'pendiente'") || 
+      (normalizedText.includes('FROM alertas a') && normalizedText.includes('JOIN estados_alerta ea'))) {
     const list = db.alertas
-      .filter(a => a.estado === 'confirmado')
+      .filter(a => {
+        if (a.id_estado_alerta !== undefined) {
+          return a.id_estado_alerta === 1;
+        }
+        return a.estado === 'pendiente';
+      })
       .map(a => {
         const caso = db.casos.find(c => c.id === a.caso_id);
         return {
           ...a,
+          estado: 'pendiente',
           nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
         };
       });
-    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    list.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
     return { rows: list };
   }
 
-  // 13. UPDATE alertas SET id_estado_alerta = $1...
-  if (normalizedText.includes('UPDATE alertas SET id_estado_alerta = $1, estado = $2, moderador_id = $3, fecha_validacion = $4, comentarios = $5 WHERE id = $6')) {
-    const [id_estado_alerta, estado, moderador_id, fecha_validacion, comentarios, id] = params;
+  // 13. UPDATE alertas SET estado = $1 WHERE id = $2 RETURNING *
+  if (normalizedText.includes('UPDATE alertas SET estado = $1 WHERE id = $2')) {
+    const [estado, id] = params;
     const idx = db.alertas.findIndex(a => a.id === parseInt(id));
     if (idx !== -1) {
-      db.alertas[idx].id_estado_alerta = parseInt(id_estado_alerta);
       db.alertas[idx].estado = estado;
-      db.alertas[idx].moderador_id = parseInt(moderador_id);
-      db.alertas[idx].fecha_validacion = fecha_validacion;
-      db.alertas[idx].comentarios = comentarios;
       writeMockDb(db);
       return { rows: [db.alertas[idx]] };
     }

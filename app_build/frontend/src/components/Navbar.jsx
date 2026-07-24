@@ -26,6 +26,9 @@ const Navbar = () => {
         <Link to="/" className="navbar-item">
           Dashboard
         </Link>
+        <Link to="/autoridades" className="navbar-item">
+          Autoridades
+        </Link>
         <Link to="/moderacion" className="navbar-item">
           Moderación
         </Link>
