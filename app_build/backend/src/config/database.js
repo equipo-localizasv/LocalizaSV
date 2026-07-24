@@ -209,6 +209,13 @@ const mockQuery = (text, params = []) => {
     return { rows: found };
   }
 
+  // 10.5 SELECT id FROM alertas WHERE id = $1
+  if (normalizedText.includes('SELECT id FROM alertas WHERE id = $1')) {
+    const [id] = params;
+    const found = db.alertas.filter(a => a.id === parseInt(id));
+    return { rows: found };
+  }
+
   // 11. INSERT INTO alertas
   if (normalizedText.includes('INSERT INTO alertas')) {
     const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, estado] = params;
@@ -243,12 +250,31 @@ const mockQuery = (text, params = []) => {
     return { rows: list };
   }
 
-  // 13. UPDATE alertas SET estado = $1 WHERE id = $2 RETURNING *
-  if (normalizedText.includes('UPDATE alertas SET estado = $1 WHERE id = $2')) {
-    const [estado, id] = params;
+  // 12.5 SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos WHERE a.estado = 'confirmado'
+  if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'confirmado'")) {
+    const list = db.alertas
+      .filter(a => a.estado === 'confirmado')
+      .map(a => {
+        const caso = db.casos.find(c => c.id === a.caso_id);
+        return {
+          ...a,
+          nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
+        };
+      });
+    list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return { rows: list };
+  }
+
+  // 13. UPDATE alertas SET id_estado_alerta = $1...
+  if (normalizedText.includes('UPDATE alertas SET id_estado_alerta = $1, estado = $2, moderador_id = $3, fecha_validacion = $4, comentarios = $5 WHERE id = $6')) {
+    const [id_estado_alerta, estado, moderador_id, fecha_validacion, comentarios, id] = params;
     const idx = db.alertas.findIndex(a => a.id === parseInt(id));
     if (idx !== -1) {
+      db.alertas[idx].id_estado_alerta = parseInt(id_estado_alerta);
       db.alertas[idx].estado = estado;
+      db.alertas[idx].moderador_id = parseInt(moderador_id);
+      db.alertas[idx].fecha_validacion = fecha_validacion;
+      db.alertas[idx].comentarios = comentarios;
       writeMockDb(db);
       return { rows: [db.alertas[idx]] };
     }

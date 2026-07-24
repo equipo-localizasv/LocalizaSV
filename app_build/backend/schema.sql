@@ -35,5 +35,9 @@ CREATE TABLE IF NOT EXISTS alertas (
     video_url VARCHAR(512),
     foto_evidencia_url VARCHAR(512),
     estado VARCHAR(50) DEFAULT 'pendiente' NOT NULL,
+    id_estado_alerta INT DEFAULT 1 NOT NULL,
+    moderador_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+    fecha_validacion TIMESTAMP,
+    comentarios TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
