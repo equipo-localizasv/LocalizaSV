@@ -43,18 +43,13 @@ CREATE TABLE IF NOT EXISTS alertas (
     ubicacion_lat DECIMAL(10, 8) NOT NULL,
     ubicacion_lng DECIMAL(11, 8) NOT NULL,
     porcentaje_confianza DECIMAL(5, 2) NOT NULL,
-    video_url TEXT,
-    foto_evidencia_url TEXT,
-    fecha_deteccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    id_estado_alerta INT REFERENCES estados_alerta(id) ON DELETE SET NULL,
+    video_url VARCHAR(512),
+    foto_evidencia_url VARCHAR(512),
+    estado VARCHAR(50) DEFAULT 'pendiente' NOT NULL,
+    id_estado_alerta INT REFERENCES estados_alerta(id) DEFAULT 1 NOT NULL,
     moderador_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
     fecha_validacion TIMESTAMP,
-    comentarios_moderador TEXT
+    comentarios TEXT,
+    fecha_deteccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- Índices recomendados para optimización de consultas
-CREATE INDEX IF NOT EXISTS idx_alertas_caso_id ON alertas(caso_id);
-CREATE INDEX IF NOT EXISTS idx_alertas_id_estado_alerta ON alertas(id_estado_alerta);
-CREATE INDEX IF NOT EXISTS idx_alertas_fecha_deteccion ON alertas(fecha_deteccion DESC);
-CREATE INDEX IF NOT EXISTS idx_alertas_coordenadas ON alertas(ubicacion_lat, ubicacion_lng);
-

@@ -209,16 +209,6 @@ const mockQuery = (text, params = []) => {
     return { rows: found };
   }
 
-  // Query state ID from name (mock estados_alerta)
-  if (normalizedText.includes('SELECT id FROM estados_alerta WHERE nombre =')) {
-    const name = params[0] || 'Pendiente';
-    let id = 1;
-    if (name.toLowerCase() === 'pendiente') id = 1;
-    else if (name.toLowerCase() === 'confirmado') id = 2;
-    else if (name.toLowerCase() === 'falso positivo' || name.toLowerCase() === 'falso_positivo') id = 3;
-    return { rows: [{ id }] };
-  }
-
   // 11. INSERT INTO alertas
   if (normalizedText.includes('INSERT INTO alertas')) {
     const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, id_estado_or_estado] = params;
@@ -290,26 +280,12 @@ const mockQuery = (text, params = []) => {
     return { rows: list };
   }
 
-  // 13. UPDATE alertas SET id_estado_alerta = $1 ... OR SET estado = $1
-  if (normalizedText.includes('UPDATE alertas SET id_estado_alerta = $1') || 
-      normalizedText.includes('UPDATE alertas SET estado = $1')) {
-    
-    const isNewSchema = normalizedText.includes('id_estado_alerta = $1');
-    const idx = db.alertas.findIndex(a => a.id === parseInt(params[params.length - 1]));
-    
+  // 13. UPDATE alertas SET estado = $1 WHERE id = $2 RETURNING *
+  if (normalizedText.includes('UPDATE alertas SET estado = $1 WHERE id = $2')) {
+    const [estado, id] = params;
+    const idx = db.alertas.findIndex(a => a.id === parseInt(id));
     if (idx !== -1) {
-      if (isNewSchema) {
-        const [id_estado_alerta, moderador_id, fecha_validacion, comentarios_moderador] = params;
-        db.alertas[idx].id_estado_alerta = parseInt(id_estado_alerta);
-        db.alertas[idx].moderador_id = moderador_id ? parseInt(moderador_id) : null;
-        db.alertas[idx].fecha_validacion = fecha_validacion;
-        db.alertas[idx].comentarios_moderador = comentarios_moderador;
-        db.alertas[idx].estado = id_estado_alerta === 1 ? 'pendiente' : (id_estado_alerta === 2 ? 'confirmado' : 'falso positivo');
-      } else {
-        const [estado] = params;
-        db.alertas[idx].estado = estado;
-        db.alertas[idx].id_estado_alerta = estado === 'pendiente' ? 1 : (estado === 'confirmado' ? 2 : 3);
-      }
+      db.alertas[idx].estado = estado;
       writeMockDb(db);
       return { rows: [db.alertas[idx]] };
     }

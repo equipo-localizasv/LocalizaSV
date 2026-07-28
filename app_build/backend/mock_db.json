@@ -9,6 +9,16 @@
       "password_hash": "$2a$10$D3y7Gp9LeLNaIJxxl0WcVeqHZQB/9vJjr/iH.y5sle4oGJR.NfvOi",
       "selfie_url": "/uploads/selfie-1784267763279-96526501.jpeg",
       "created_at": "2026-07-17T05:56:03.611Z"
+    },
+    {
+      "id": 2,
+      "nombre": "Moderador de Prueba",
+      "dui": "99999999-9",
+      "email": "temp_mod@test.com",
+      "telefono": "7999-9999",
+      "password_hash": "$2a$10$.vcoxQ5Ft6amPBa5AESs9uDLbJpBqUn8aUi97GdVnWaOog.Yd4qQm",
+      "selfie_url": "/uploads/selfie-1784861285906-554537158.jpg",
+      "created_at": "2026-07-24T02:48:06.186Z"
     }
   ],
   "casos": [
@@ -37,8 +47,7 @@
       "video_url": null,
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "pendiente",
-      "id_estado_alerta": 1,
-      "fecha_deteccion": "2026-07-22T17:09:57.858Z"
+      "created_at": "2026-07-22T17:09:57.858Z"
     }
   ]
 }
