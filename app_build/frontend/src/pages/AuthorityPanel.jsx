@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
-import AlertsMap from '../components/AlertsMap';
+import MapaAlertas from '../components/MapaAlertas';
 
 const AuthorityPanel = () => {
   const [alerts, setAlerts] = useState([]);
@@ -361,7 +361,7 @@ const AuthorityPanel = () => {
       </div>
 
       {/* Componente Mapa de Alertas (recibe las alertas filtradas) */}
-      <AlertsMap alerts={filteredAlerts} />
+      <MapaAlertas alerts={filteredAlerts} />
 
       {/* Tabla con las alertas filtradas */}
       <div className="glass-panel" style={{ padding: '1.5rem', marginTop: '1.5rem' }}>
