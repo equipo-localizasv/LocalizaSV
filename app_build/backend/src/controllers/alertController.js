@@ -1,24 +1,6 @@
 const db = require('../config/database');
 const { sendNotificationToAll } = require('../services/notifications');
 
-const getActiveAlerts = async (req, res) => {
-  try {
-    // OPTIMIZED: Filter by indexed integer ID (a.id_estado_alerta != 3) instead of string LOWER evaluation
-    const result = await db.query(
-      `SELECT a.*, LOWER(ea.nombre) as estado, c.nombre_desaparecido 
-       FROM alertas a
-       JOIN casos c ON a.caso_id = c.id
-       JOIN estados_alerta ea ON a.id_estado_alerta = ea.id
-       WHERE a.id_estado_alerta != 3
-       ORDER BY a.fecha_deteccion DESC`
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    console.error('Error al obtener alertas activas:', error);
-    return res.status(500).json({ error: 'Ocurrió un error en el servidor al obtener las alertas activas.' });
-  }
-};
-
 const getPendingAlerts = async (req, res) => {
   try {
     // OPTIMIZED: Filter by indexed integer ID (a.id_estado_alerta = 1) instead of string LOWER evaluation
@@ -35,6 +17,27 @@ const getPendingAlerts = async (req, res) => {
     console.error('Error al obtener alertas pendientes:', error);
     return res.status(500).json({ error: 'Ocurrió un error en el servidor al obtener las alertas pendientes.' });
   }
+};
+
+const getActiveAlerts = async (req, res) => {
+  try {
+    // OPTIMIZED: Filter by indexed integer ID (a.id_estado_alerta = 2) for confirmed/active alerts
+    const result = await db.query(
+      `SELECT a.*, c.nombre_desaparecido 
+       FROM alertas a
+       JOIN casos c ON a.caso_id = c.id
+       WHERE a.id_estado_alerta = 2
+       ORDER BY a.created_at DESC`
+    );
+    return res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error al obtener alertas activas:', error);
+    return res.status(500).json({ error: 'Ocurrió un error en el servidor al obtener las alertas activas.' });
+  }
+};
+
+const getConfirmedAlerts = async (req, res) => {
+  return getActiveAlerts(req, res);
 };
 
 const updateAlertStatus = async (req, res) => {
@@ -93,19 +96,22 @@ const updateAlertStatus = async (req, res) => {
            comentarios = $5 
        WHERE id = $6 
        RETURNING *`,
-      [
-        parseInt(finalIdEstado),
-        finalEstado,
-        moderador_id,
-        fecha_validacion,
-        comentarios,
-        parseInt(id)
-      ]
+      [finalIdEstado, finalEstado, moderador_id, fecha_validacion, comentarios, parseInt(id)]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: `La alerta con ID ${id} no existe.` });
+    }
 
     const updatedAlert = result.rows[0];
 
-    // Trigger push notification if status was updated to Confirmed (id_estado_alerta = 2)
+    // 1. Broadcast WebSocket event in real-time
+    const appModule = require('../app');
+    if (appModule && typeof appModule.broadcast === 'function') {
+      appModule.broadcast('alerta_actualizada', updatedAlert);
+    }
+
+    // 2. Trigger push notification if status was updated to Confirmed (id_estado_alerta = 2)
     if (parseInt(finalIdEstado) === 2) {
       try {
         const caseResult = await db.query(
@@ -138,22 +144,6 @@ const updateAlertStatus = async (req, res) => {
   } catch (error) {
     console.error('Error al actualizar estado de la alerta:', error);
     return res.status(500).json({ error: 'Ocurrió un error en el servidor al actualizar la alerta.' });
-  }
-};
-
-const getConfirmedAlerts = async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT a.*, c.nombre_desaparecido 
-       FROM alertas a
-       JOIN casos c ON a.caso_id = c.id
-       WHERE a.estado = 'confirmado'
-       ORDER BY a.created_at DESC`
-    );
-    return res.status(200).json(result.rows);
-  } catch (error) {
-    console.error('Error al obtener alertas activas (confirmadas):', error);
-    return res.status(500).json({ error: 'Ocurrió un error en el servidor al obtener las alertas activas.' });
   }
 };
 

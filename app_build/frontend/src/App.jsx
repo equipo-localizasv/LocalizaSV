@@ -1,7 +1,9 @@
 import React, { createContext, useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import api from './services/api';
+import socketService from './services/socket';
 import Navbar from './components/Navbar';
+import ToastContainer from './components/ToastContainer';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -15,6 +17,7 @@ export const AuthContext = createContext(null);
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [toasts, setToasts] = useState([]);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -23,6 +26,8 @@ const App = () => {
         try {
           const response = await api.get('/auth/me');
           setUser(response.data);
+          // Requisito 23: Conectar al WebSocket cuando hay sesión activa
+          socketService.connect(token);
         } catch (error) {
           console.error('Error auto-login user:', error);
           localStorage.removeItem('token');
@@ -35,14 +40,47 @@ const App = () => {
     loadUser();
   }, []);
 
+  // Efecto para gestionar conexión/desconexión y Toast en tiempo real
+  useEffect(() => {
+    // Escuchar el evento 'nueva_alerta' para notificaciones Toast (Requisito 27)
+    const unsubscribe = socketService.on('nueva_alerta', (alertData) => {
+      console.log('🚨 [App] Evento "nueva_alerta" recibido:', alertData);
+      const toastId = Date.now() + Math.random();
+      const newToast = {
+        id: toastId,
+        alerta: alertData,
+        created_at: new Date()
+      };
+
+      setToasts((prevToasts) => [newToast, ...prevToasts].slice(0, 5));
+
+      // Descartar automáticamente tras 7 segundos
+      setTimeout(() => {
+        setToasts((prevToasts) => prevToasts.filter((t) => t.id !== toastId));
+      }, 7000);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user]);
+
   const login = (token, userData) => {
     localStorage.setItem('token', token);
     setUser(userData);
+    // Requisito 23: Conectar al servidor WebSocket al iniciar sesión
+    socketService.connect(token);
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    // Desconectar socket al salir
+    socketService.disconnect();
     setUser(null);
+  };
+
+  const removeToast = (id) => {
+    setToasts((prevToasts) => prevToasts.filter((t) => t.id !== id));
   };
 
   if (loading) {
@@ -86,6 +124,8 @@ const App = () => {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
+          {/* Notificaciones flotantes Toast en tiempo real */}
+          <ToastContainer toasts={toasts} onDismiss={removeToast} />
         </div>
       </Router>
     </AuthContext.Provider>
@@ -93,3 +133,4 @@ const App = () => {
 };
 
 export default App;
+
