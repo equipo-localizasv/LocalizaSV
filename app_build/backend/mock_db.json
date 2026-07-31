@@ -101,6 +101,21 @@
       "moderador_id": 2,
       "fecha_validacion": "2026-07-31T21:10:07.524Z",
       "comentarios": "Confirmado en prueba de FCM"
+    },
+    {
+      "id": 5,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:28:16.682Z",
+      "id_estado_alerta": 2,
+      "estado": "confirmado",
+      "moderador_id": 2,
+      "fecha_validacion": "2026-07-31T21:28:16.698Z",
+      "comentarios": "Confirmado en prueba de FCM"
     }
   ],
   "tokens_fcm": [
@@ -115,6 +130,18 @@
       "usuario_id": 2,
       "token": "mock-fcm-test-token-888",
       "created_at": "2026-07-31T21:10:07.504Z"
+    },
+    {
+      "id": 3,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-999",
+      "created_at": "2026-07-31T21:27:59.273Z"
+    },
+    {
+      "id": 4,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-1000",
+      "created_at": "2026-07-31T21:28:16.667Z"
     }
   ]
 }
