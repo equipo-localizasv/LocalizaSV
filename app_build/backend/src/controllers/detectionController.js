@@ -35,11 +35,24 @@ const createDetection = async (req, res) => {
 
     const nombreDesaparecido = caseCheck.rows[0]?.nombre_desaparecido || `Caso #${caso_id}`;
 
-    // 3. Create a record in the Alertas table with state 'pendiente'
+    // 3. Obtener el ID del estado 'Pendiente'
+    let id_estado_alerta = 1;
+    try {
+      const statusResult = await db.query(
+        "SELECT id FROM estados_alerta WHERE LOWER(nombre) = 'pendiente'"
+      );
+      if (statusResult.rows.length > 0) {
+        id_estado_alerta = statusResult.rows[0].id;
+      }
+    } catch (e) {
+      console.warn('⚠️ No se pudo consultar estados_alerta, usando id=1 por defecto.');
+    }
+
+    // 4. Create a record in the Alertas table
     const insertResult = await db.query(
       `INSERT INTO alertas (
         caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, 
-        video_url, foto_evidencia_url, estado
+        video_url, foto_evidencia_url, id_estado_alerta
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *`,
       [
@@ -49,12 +62,13 @@ const createDetection = async (req, res) => {
         parseFloat(porcentaje_confianza),
         video_url || null,
         foto_evidencia_url || null,
-        'pendiente'
+        id_estado_alerta
       ]
     );
 
     const newAlert = {
       ...insertResult.rows[0],
+      estado: 'pendiente',
       nombre_desaparecido: nombreDesaparecido
     };
 
@@ -63,7 +77,7 @@ const createDetection = async (req, res) => {
       broadcast('nueva_alerta', newAlert);
     }
 
-    // 4. Return the created alert with code 201
+    // 5. Return the created alert with code 201
     return res.status(201).json({
       message: 'Detección de cámara registrada con éxito.',
       alerta: newAlert
@@ -80,4 +94,3 @@ const createDetection = async (req, res) => {
 module.exports = {
   createDetection
 };
-

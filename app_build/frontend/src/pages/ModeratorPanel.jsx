@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import socketService from '../services/socket';
+import ActiveAlertsMap from '../components/ActiveAlertsMap';
 
 const ModeratorPanel = () => {
   const [alerts, setAlerts] = useState([]);
@@ -120,9 +121,9 @@ const ModeratorPanel = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <span 
-            className="status-badge" 
-            style={{ 
+          <span
+            className="status-badge"
+            style={{
               backgroundColor: socketService.isConnected() ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
               color: socketService.isConnected() ? '#10b981' : '#ef4444',
               border: `1px solid ${socketService.isConnected() ? '#10b981' : '#ef4444'}`
@@ -134,6 +135,14 @@ const ModeratorPanel = () => {
             🔄 Actualizar
           </button>
         </div>
+      </div>
+
+      {/* Mapa interactivo de alertas activas */}
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+          🗺️ Mapa de Alertas Activas
+        </h2>
+        <ActiveAlertsMap />
       </div>
 
       {error && <div className="auth-error text-center mb-4">{error}</div>}
@@ -168,7 +177,7 @@ const ModeratorPanel = () => {
 
           {/* Popup flotante de marcador seleccionado */}
           {selectedMarker && (
-            <div 
+            <div
               style={{
                 position: 'absolute',
                 bottom: '1rem',
@@ -186,8 +195,8 @@ const ModeratorPanel = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', fontWeight: 'bold' }}>
                 <span style={{ color: 'var(--primary)' }}>Alerta #{selectedMarker.id}</span>
-                <button 
-                  onClick={() => setSelectedMarker(null)} 
+                <button
+                  onClick={() => setSelectedMarker(null)}
                   style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '1rem' }}
                 >
                   ✕
@@ -251,20 +260,20 @@ const ModeratorPanel = () => {
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <div className="confidence-bar-bg">
-                        <div 
-                          className="confidence-bar-fill" 
-                          style={{ 
+                        <div
+                          className="confidence-bar-fill"
+                          style={{
                             width: `${alert.porcentaje_confianza}%`,
                             background: alert.porcentaje_confianza > 80 ? 'var(--accent-green)' : 'var(--primary)'
-                          }} 
+                          }}
                         />
                       </div>
                       <span style={{ fontWeight: 'bold' }}>{alert.porcentaje_confianza}%</span>
                     </div>
                   </td>
                   <td>
-                    <span 
-                      style={{ 
+                    <span
+                      style={{
                         fontWeight: 'bold',
                         textTransform: 'capitalize',
                         color: getMarkerColor(alert.estado)
@@ -276,22 +285,22 @@ const ModeratorPanel = () => {
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       {alert.foto_evidencia_url && (
-                        <a 
-                          href={alert.foto_evidencia_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="btn btn-secondary" 
+                        <a
+                          href={alert.foto_evidencia_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                         >
                           🖼️ Foto
                         </a>
                       )}
                       {alert.video_url && (
-                        <a 
-                          href={alert.video_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="btn btn-secondary" 
+                        <a
+                          href={alert.video_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                         >
                           🎥 Video
