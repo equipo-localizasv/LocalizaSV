@@ -9,7 +9,7 @@ class SocketService {
     this.listeners = new Map(); // Mapa de evento -> Set(callbacks)
     this.token = null;
     this.reconnectTimer = null;
-    this.url = process.env.VITE_WS_URL || 'ws://localhost:3001/ws';
+    this.url = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) || 'ws://localhost:3001/ws';
   }
 
   /**

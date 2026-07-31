@@ -202,8 +202,8 @@ const mockQuery = (text, params = []) => {
     return { rows: [] };
   }
 
-  // 10. SELECT id FROM casos WHERE id = $1
-  if (normalizedText.includes('SELECT id FROM casos WHERE id = $1')) {
+  // 10. SELECT id FROM casos WHERE id = $1 (broadened)
+  if (normalizedText.includes('FROM casos WHERE id = $1')) {
     const [id] = params;
     const found = db.casos.filter(c => c.id === parseInt(id));
     return { rows: found };
@@ -216,13 +216,13 @@ const mockQuery = (text, params = []) => {
     return { rows: found };
   }
 
-  // 10.6 SELECT id FROM estados_alerta WHERE nombre = $1 or literal
-  if (normalizedText.includes('FROM estados_alerta WHERE nombre =')) {
+  // 10.6 SELECT id FROM estados_alerta WHERE nombre = $1 or literal (broadened)
+  if (normalizedText.includes('estados_alerta')) {
     let name = 'Pendiente';
     if (params.length > 0) name = params[0];
-    else if (normalizedText.includes("'Pendiente'")) name = 'Pendiente';
-    else if (normalizedText.includes("'Confirmado'")) name = 'Confirmado';
-    else if (normalizedText.includes("'Falso Positivo'")) name = 'Falso Positivo';
+    else if (normalizedText.includes("'pendiente'") || normalizedText.includes("'Pendiente'")) name = 'Pendiente';
+    else if (normalizedText.includes("'confirmado'") || normalizedText.includes("'Confirmado'")) name = 'Confirmado';
+    else if (normalizedText.includes("'falso positivo'") || normalizedText.includes("'Falso Positivo'")) name = 'Falso Positivo';
     
     const norm = name.toLowerCase();
     const id = norm === 'pendiente' ? 1 : (norm === 'confirmado' ? 2 : 3);
