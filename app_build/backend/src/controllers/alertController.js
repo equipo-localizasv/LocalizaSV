@@ -1,13 +1,15 @@
 const db = require('../config/database');
+const { sendNotificationToAll } = require('../services/notifications');
 
 const getActiveAlerts = async (req, res) => {
   try {
+    // OPTIMIZED: Filter by indexed integer ID (a.id_estado_alerta != 3) instead of string LOWER evaluation
     const result = await db.query(
       `SELECT a.*, LOWER(ea.nombre) as estado, c.nombre_desaparecido 
        FROM alertas a
        JOIN casos c ON a.caso_id = c.id
        JOIN estados_alerta ea ON a.id_estado_alerta = ea.id
-       WHERE LOWER(ea.nombre) != 'falso positivo'
+       WHERE a.id_estado_alerta != 3
        ORDER BY a.fecha_deteccion DESC`
     );
     return res.status(200).json(result.rows);
@@ -19,12 +21,13 @@ const getActiveAlerts = async (req, res) => {
 
 const getPendingAlerts = async (req, res) => {
   try {
+    // OPTIMIZED: Filter by indexed integer ID (a.id_estado_alerta = 1) instead of string LOWER evaluation
     const result = await db.query(
       `SELECT a.*, LOWER(ea.nombre) as estado, c.nombre_desaparecido 
        FROM alertas a
        JOIN casos c ON a.caso_id = c.id
        JOIN estados_alerta ea ON a.id_estado_alerta = ea.id
-       WHERE LOWER(ea.nombre) = 'pendiente'
+       WHERE a.id_estado_alerta = 1
        ORDER BY a.fecha_deteccion DESC`
     );
     return res.status(200).json(result.rows);
@@ -72,7 +75,7 @@ const updateAlertStatus = async (req, res) => {
 
   try {
     // Verify alert exists
-    const alertCheck = await db.query('SELECT id FROM alertas WHERE id = $1', [parseInt(id)]);
+    const alertCheck = await db.query('SELECT id, caso_id FROM alertas WHERE id = $1', [parseInt(id)]);
     if (alertCheck.rows.length === 0) {
       return res.status(404).json({ error: `La alerta con ID ${id} no existe.` });
     }
@@ -100,9 +103,37 @@ const updateAlertStatus = async (req, res) => {
       ]
     );
 
+    const updatedAlert = result.rows[0];
+
+    // Trigger push notification if status was updated to Confirmed (id_estado_alerta = 2)
+    if (parseInt(finalIdEstado) === 2) {
+      try {
+        const caseResult = await db.query(
+          'SELECT nombre_desaparecido FROM casos WHERE id = $1',
+          [updatedAlert.caso_id]
+        );
+        const name = caseResult.rows[0] ? caseResult.rows[0].nombre_desaparecido : 'Desconocido';
+        
+        // Fire and forget push notification async
+        sendNotificationToAll(
+          '¡Alerta de avistamiento confirmada!',
+          `Se ha confirmado un avistamiento para: ${name}`,
+          {
+            click_action: `/caso/${updatedAlert.caso_id}`,
+            caso_id: String(updatedAlert.caso_id),
+            alerta_id: String(updatedAlert.id)
+          }
+        ).catch(err => {
+          console.error('[Notification Trigger Error] Failed to send push message:', err);
+        });
+      } catch (triggerError) {
+        console.error('[Notification Trigger Error] Failed to query case or send push:', triggerError);
+      }
+    }
+
     return res.status(200).json({
       message: 'Estado de la alerta actualizado con éxito.',
-      alerta: result.rows[0]
+      alerta: updatedAlert
     });
   } catch (error) {
     console.error('Error al actualizar estado de la alerta:', error);

@@ -62,6 +62,59 @@
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "pendiente",
       "created_at": "2026-07-22T17:09:57.858Z"
+    },
+    {
+      "id": 2,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:09:14.847Z",
+      "id_estado_alerta": 1,
+      "estado": "pendiente"
+    },
+    {
+      "id": 3,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:09:42.398Z",
+      "id_estado_alerta": 1,
+      "estado": "pendiente"
+    },
+    {
+      "id": 4,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:10:07.514Z",
+      "id_estado_alerta": 2,
+      "estado": "confirmado",
+      "moderador_id": 2,
+      "fecha_validacion": "2026-07-31T21:10:07.524Z",
+      "comentarios": "Confirmado en prueba de FCM"
+    }
+  ],
+  "tokens_fcm": [
+    {
+      "id": 1,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-777",
+      "created_at": "2026-07-31T21:09:42.388Z"
+    },
+    {
+      "id": 2,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-888",
+      "created_at": "2026-07-31T21:10:07.504Z"
     }
   ]
 }

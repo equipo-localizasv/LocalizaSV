@@ -209,6 +209,26 @@ const mockQuery = (text, params = []) => {
     return { rows: found };
   }
 
+  // 10.5 SELECT id, caso_id FROM alertas WHERE id = $1
+  if (normalizedText.includes('FROM alertas WHERE id = $1')) {
+    const [id] = params;
+    const found = db.alertas.filter(a => a.id === parseInt(id));
+    return { rows: found };
+  }
+
+  // 10.6 SELECT id FROM estados_alerta WHERE nombre = $1 or literal
+  if (normalizedText.includes('FROM estados_alerta WHERE nombre =')) {
+    let name = 'Pendiente';
+    if (params.length > 0) name = params[0];
+    else if (normalizedText.includes("'Pendiente'")) name = 'Pendiente';
+    else if (normalizedText.includes("'Confirmado'")) name = 'Confirmado';
+    else if (normalizedText.includes("'Falso Positivo'")) name = 'Falso Positivo';
+    
+    const norm = name.toLowerCase();
+    const id = norm === 'pendiente' ? 1 : (norm === 'confirmado' ? 2 : 3);
+    return { rows: [{ id }] };
+  }
+
   // 11. INSERT INTO alertas
   if (normalizedText.includes('INSERT INTO alertas')) {
     const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, id_estado_or_estado] = params;
@@ -286,6 +306,87 @@ const mockQuery = (text, params = []) => {
     const idx = db.alertas.findIndex(a => a.id === parseInt(id));
     if (idx !== -1) {
       db.alertas[idx].estado = estado;
+      writeMockDb(db);
+      return { rows: [db.alertas[idx]] };
+    }
+    return { rows: [] };
+  }
+
+  // 14. SELECT nombre_desaparecido FROM casos WHERE id = $1
+  if (normalizedText.includes('SELECT nombre_desaparecido FROM casos WHERE id = $1')) {
+    const [id] = params;
+    const caso = db.casos.find(c => c.id === parseInt(id));
+    return { rows: caso ? [{ nombre_desaparecido: caso.nombre_desaparecido }] : [] };
+  }
+
+  // 15. INSERT INTO tokens_fcm
+  if (normalizedText.includes('INSERT INTO tokens_fcm')) {
+    const [usuario_id, token] = params;
+    if (!db.tokens_fcm) db.tokens_fcm = [];
+    const existingIdx = db.tokens_fcm.findIndex(t => t.token === token);
+    const newT = {
+      id: existingIdx !== -1 ? db.tokens_fcm[existingIdx].id : db.tokens_fcm.length + 1,
+      usuario_id: usuario_id ? parseInt(usuario_id) : null,
+      token,
+      created_at: new Date().toISOString()
+    };
+    if (existingIdx !== -1) {
+      db.tokens_fcm[existingIdx] = newT;
+    } else {
+      db.tokens_fcm.push(newT);
+    }
+    writeMockDb(db);
+    return { rows: [newT] };
+  }
+
+  // 16. SELECT token FROM tokens_fcm
+  if (normalizedText.includes('SELECT token FROM tokens_fcm')) {
+    if (!db.tokens_fcm) db.tokens_fcm = [];
+    return { rows: db.tokens_fcm.map(t => ({ token: t.token })) };
+  }
+
+  // 17. Optimized: WHERE a.id_estado_alerta = 1
+  if (normalizedText.includes('WHERE a.id_estado_alerta = 1')) {
+    const list = db.alertas
+      .filter(a => (a.id_estado_alerta === 1 || a.estado === 'pendiente'))
+      .map(a => {
+        const caso = db.casos.find(c => c.id === a.caso_id);
+        return {
+          ...a,
+          estado: 'pendiente',
+          nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
+        };
+      });
+    list.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
+    return { rows: list };
+  }
+
+  // 18. Optimized: WHERE a.id_estado_alerta != 3
+  if (normalizedText.includes('WHERE a.id_estado_alerta != 3')) {
+    const list = db.alertas
+      .filter(a => (a.id_estado_alerta !== 3 && a.estado !== 'falso positivo'))
+      .map(a => {
+        const caso = db.casos.find(c => c.id === a.caso_id);
+        return {
+          ...a,
+          estado: a.estado || 'confirmado',
+          nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
+        };
+      });
+    list.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
+    return { rows: list };
+  }
+
+  // 19. UPDATE alertas SET id_estado_alerta = $1, estado = $2, ... WHERE id = $6 RETURNING *
+  if (normalizedText.includes('UPDATE alertas SET id_estado_alerta = $1, estado = $2, moderador_id = $3, fecha_validacion = $4, comentarios = $5 WHERE id = $6')) {
+    const [id_estado_alerta, estado, moderador_id, fecha_validacion, comentarios, id] = params;
+    const idx = db.alertas.findIndex(a => a.id === parseInt(id));
+    if (idx !== -1) {
+      db.alertas[idx].id_estado_alerta = parseInt(id_estado_alerta);
+      db.alertas[idx].estado = estado;
+      db.alertas[idx].moderador_id = moderador_id ? parseInt(moderador_id) : null;
+      db.alertas[idx].fecha_validacion = fecha_validacion;
+      db.alertas[idx].comentarios = comentarios;
       writeMockDb(db);
       return { rows: [db.alertas[idx]] };
     }

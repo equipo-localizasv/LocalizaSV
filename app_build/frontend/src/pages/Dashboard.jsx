@@ -38,6 +38,22 @@ const Dashboard = () => {
     return () => clearTimeout(timer);
   }, [search, statusFilter]);
 
+  const [fcmToken, setFcmToken] = useState('');
+  const [regStatus, setRegStatus] = useState('');
+
+  const handleSimulateFcmRegister = async () => {
+    setRegStatus('Registrando...');
+    try {
+      const mockToken = `mock-fcm-token-${user ? user.id : 'anon'}-${Math.floor(Math.random() * 100000)}`;
+      await api.post('/notifications/register-token', { token: mockToken });
+      setFcmToken(mockToken);
+      setRegStatus('¡Token registrado en la BD!');
+    } catch (err) {
+      console.error(err);
+      setRegStatus('Error al registrar token de simulación.');
+    }
+  };
+
   const getImageUrl = (path) => {
     if (!path) return '';
     return `http://localhost:3001${path}`;
@@ -71,6 +87,30 @@ const Dashboard = () => {
           </Link>
         )}
       </div>
+
+      {user && (
+        <div className="glass-panel animate-fade-in" style={{ padding: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px dashed var(--primary)' }}>
+          <div>
+            <h4 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              📲 Simulador de Notificaciones Push (FCM)
+            </h4>
+            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Registra este navegador como un dispositivo para recibir alertas simuladas del sistema.
+            </p>
+            {fcmToken && (
+              <code style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                Token: {fcmToken}
+              </code>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+            <button onClick={handleSimulateFcmRegister} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+              🔔 Registrar Dispositivo Mock
+            </button>
+            {regStatus && <span style={{ fontSize: '0.75rem', color: regStatus.includes('¡') ? 'var(--success)' : 'var(--text-secondary)' }}>{regStatus}</span>}
+          </div>
+        </div>
+      )}
 
       <div className="filters-bar glass-panel" style={{ padding: '1rem', marginBottom: '2rem' }}>
         <div className="search-input-wrapper">
