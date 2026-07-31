@@ -35,6 +35,20 @@
       "foto_url": "/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "Desaparecido",
       "created_at": "2026-07-17T05:58:57.009Z"
+    },
+    {
+      "id": 2,
+      "usuario_id": 1,
+      "nombre_desaparecido": "Jose Daniel Mejia Vanegas",
+      "edad": 22,
+      "genero": "Masculino",
+      "fecha_desaparicion": "2026-02-05",
+      "ubicacion_desaparicion": "En la esquina de mi casa",
+      "descripcion": "Tiene 2 brazos, 2 ojos, una cabeza, 2 piernas y es altoo",
+      "telefono_contacto": "7890-8754",
+      "foto_url": "/uploads/foto-1785254218049-220653248.jpg",
+      "estado": "Encontrado",
+      "created_at": "2026-07-28T15:56:58.065Z"
     }
   ],
   "alertas": [
