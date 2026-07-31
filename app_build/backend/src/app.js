@@ -3,6 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const http = require('http');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
@@ -23,6 +25,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(morgan('dev'));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static files directory for uploaded images
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -35,7 +39,7 @@ app.use('/api/alertas', alertRoutes);
 
 // Base route for API status check
 app.get('/', (req, res) => {
-  res.json({ message: 'LocalizaSV API running in Phase 1 mode' });
+  res.json({ message: 'LocalizaSV API running with WebSocket support' });
 });
 
 // Error handling middleware
@@ -44,11 +48,42 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
-// Server Initialization
+// Server & WebSocket Initialization
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ noServer: true });
+
+server.on('upgrade', (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit('connection', ws, request);
+  });
+});
+
+wss.on('connection', (ws) => {
+  console.log('🔌 [WebSocket] Cliente conectado al servidor principal LocalizaSV.');
+  ws.on('close', () => {
+    console.log('🔌 [WebSocket] Cliente desconectado.');
+  });
+});
+
+/**
+ * Transmite un evento a todos los clientes WebSocket conectados
+ */
+const broadcast = (event, data) => {
+  const message = JSON.stringify({ event, data });
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+};
+
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  server.listen(PORT, () => {
+    console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT} with WebSocket support.`);
   });
 }
 
 module.exports = app;
+module.exports.server = server;
+module.exports.broadcast = broadcast;
+

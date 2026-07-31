@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { broadcast } = require('../app');
 
 const getPendingAlerts = async (req, res) => {
   try {
@@ -40,9 +41,16 @@ const updateAlertStatus = async (req, res) => {
       return res.status(404).json({ error: `La alerta con ID ${id} no existe.` });
     }
 
+    const updatedAlert = result.rows[0];
+
+    // Broadcast evento WebSocket en tiempo real 'alerta_actualizada'
+    if (typeof broadcast === 'function') {
+      broadcast('alerta_actualizada', updatedAlert);
+    }
+
     return res.status(200).json({
       message: 'Estado de la alerta actualizado con éxito.',
-      alerta: result.rows[0]
+      alerta: updatedAlert
     });
   } catch (error) {
     console.error('Error al actualizar estado de la alerta:', error);
