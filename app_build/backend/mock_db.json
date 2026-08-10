@@ -19,6 +19,16 @@
       "password_hash": "$2a$10$.vcoxQ5Ft6amPBa5AESs9uDLbJpBqUn8aUi97GdVnWaOog.Yd4qQm",
       "selfie_url": "/uploads/selfie-1784861285906-554537158.jpg",
       "created_at": "2026-07-24T02:48:06.186Z"
+    },
+    {
+      "id": 3,
+      "nombre": "Anderson Steven Alfaro Grijalva",
+      "dui": "12345678-9",
+      "email": "pulsarrss630@gmail.com",
+      "telefono": "7568-7438",
+      "password_hash": "$2a$10$QPpqmIPe0Qk8fizsFKign.RlDKttD2cniUz5XnsqXbDdb9LDSttxa",
+      "selfie_url": "/uploads/selfie-1786375431004-843334194.jpg",
+      "created_at": "2026-08-10T15:23:51.169Z"
     }
   ],
   "casos": [
@@ -49,6 +59,20 @@
       "foto_url": "/uploads/foto-1785254218049-220653248.jpg",
       "estado": "Encontrado",
       "created_at": "2026-07-28T15:56:58.065Z"
+    },
+    {
+      "id": 3,
+      "usuario_id": 3,
+      "nombre_desaparecido": "Al Pacino",
+      "edad": 35,
+      "genero": "Masculino",
+      "fecha_desaparicion": "2026-08-10",
+      "ubicacion_desaparicion": "en el parque San Juan de Atiquizaya",
+      "descripcion": "mide 1.80 metros es color de piel trigueño tiene una sicatris en el rostro tiene acento cubano ",
+      "telefono_contacto": "7568-7438",
+      "foto_url": "/uploads/foto-1786376110135-737012434.jpg",
+      "estado": "Desaparecido",
+      "created_at": "2026-08-10T15:35:10.152Z"
     }
   ],
   "alertas": [
@@ -61,7 +85,11 @@
       "video_url": null,
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "pendiente",
-      "created_at": "2026-07-22T17:09:57.858Z"
+      "created_at": "2026-07-22T17:09:57.858Z",
+      "id_estado_alerta": 1,
+      "moderador_id": 3,
+      "fecha_validacion": "2026-08-10T15:36:32.851Z",
+      "comentarios": null
     },
     {
       "id": 2,
@@ -142,6 +170,12 @@
       "usuario_id": 2,
       "token": "mock-fcm-test-token-1000",
       "created_at": "2026-07-31T21:28:16.667Z"
+    },
+    {
+      "id": 5,
+      "usuario_id": 3,
+      "token": "mock-fcm-token-3-37005",
+      "created_at": "2026-08-10T15:24:04.917Z"
     }
   ]
 }
