@@ -20,6 +20,10 @@ const ActiveAlertsMap = () => {
   // Coordenadas iniciales de El Salvador y zoom de 8 (Requisito 11)
   const defaultCenter = [13.7, -89.2];
   const defaultZoom = 8;
+  const elSalvadorBounds = [
+    [13.0, -90.5], // SouthWest
+    [14.5, -87.5]  // NorthEast
+  ];
 
   useEffect(() => {
     const fetchActiveAlerts = async () => {
@@ -69,6 +73,9 @@ const ActiveAlertsMap = () => {
       <MapContainer
         center={defaultCenter}
         zoom={defaultZoom}
+        minZoom={8}
+        maxBounds={elSalvadorBounds}
+        maxBoundsViscosity={1.0}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >

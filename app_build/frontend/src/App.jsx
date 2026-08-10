@@ -67,7 +67,10 @@ const App = () => {
           <Navbar />
           <div className="content-wrap">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route 
+                path="/" 
+                element={user ? <Dashboard /> : <Navigate to="/login" replace />} 
+              />
               <Route 
                 path="/login" 
                 element={!user ? <Login /> : <Navigate to="/" replace />} 
@@ -80,9 +83,18 @@ const App = () => {
                 path="/reportar" 
                 element={user ? <CreateCase /> : <Navigate to="/login" replace />} 
               />
-              <Route path="/caso/:id" element={<CaseDetail />} />
-              <Route path="/moderacion" element={<ModeratorPanel />} />
-              <Route path="/autoridades" element={<AuthorityPanel />} />
+              <Route 
+                path="/caso/:id" 
+                element={user ? <CaseDetail /> : <Navigate to="/login" replace />} 
+              />
+              <Route 
+                path="/moderacion" 
+                element={user ? <ModeratorPanel /> : <Navigate to="/login" replace />} 
+              />
+              <Route 
+                path="/autoridades" 
+                element={user ? <AuthorityPanel /> : <Navigate to="/login" replace />} 
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>

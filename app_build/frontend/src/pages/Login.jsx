@@ -8,6 +8,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -57,17 +58,35 @@ const Login = () => {
           />
         </div>
 
-        <div className="form-group">
+        <div className="form-group" style={{ position: 'relative' }}>
           <label className="form-label" htmlFor="password">Contraseña</label>
           <input
             id="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             className="form-control"
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={loading}
+            style={{ paddingRight: '40px' }}
           />
+          <button 
+            type="button" 
+            onClick={() => setShowPassword(!showPassword)}
+            style={{ 
+              position: 'absolute', 
+              right: '10px', 
+              bottom: '10px', 
+              background: 'none', 
+              border: 'none', 
+              cursor: 'pointer', 
+              fontSize: '1.2rem', 
+              color: 'var(--text-muted)' 
+            }}
+            title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+          >
+            {showPassword ? '🙈' : '👁️'}
+          </button>
         </div>
 
         <button type="submit" className="btn btn-primary w-100 mt-4" disabled={loading}>

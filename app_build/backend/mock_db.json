@@ -70,11 +70,11 @@
       "porcentaje_confianza": 88.5,
       "video_url": null,
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
-      "estado": "pendiente",
+      "estado": "confirmado",
       "created_at": "2026-07-22T17:09:57.858Z",
-      "id_estado_alerta": 1,
+      "id_estado_alerta": 2,
       "moderador_id": 3,
-      "fecha_validacion": "2026-08-07T21:00:09.126Z",
+      "fecha_validacion": "2026-08-10T15:30:20.033Z",
       "comentarios": null
     }
   ]

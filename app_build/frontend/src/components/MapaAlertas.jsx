@@ -189,9 +189,13 @@ const MapaAlertas = ({ alerts: propAlerts }) => {
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [showClusters, setShowClusters] = useState(true);
 
-  // Coordenadas centradas en El Salvador
+  // Coordenadas centradas en El Salvador y límites
   const defaultCenter = [13.7, -89.2];
   const defaultZoom = 8;
+  const elSalvadorBounds = [
+    [13.0, -90.5], // SouthWest
+    [14.5, -87.5]  // NorthEast
+  ];
 
   // Cargar extensiones externas (Leaflet.Heat y Leaflet.markercluster)
   useEffect(() => {
@@ -295,6 +299,9 @@ const MapaAlertas = ({ alerts: propAlerts }) => {
         <MapContainer
           center={defaultCenter}
           zoom={defaultZoom}
+          minZoom={8}
+          maxBounds={elSalvadorBounds}
+          maxBoundsViscosity={1.0}
           style={{ height: '100%', width: '100%' }}
           scrollWheelZoom={true}
         >
