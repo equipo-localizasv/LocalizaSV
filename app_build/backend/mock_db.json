@@ -19,6 +19,16 @@
       "password_hash": "$2a$10$.vcoxQ5Ft6amPBa5AESs9uDLbJpBqUn8aUi97GdVnWaOog.Yd4qQm",
       "selfie_url": "/uploads/selfie-1784861285906-554537158.jpg",
       "created_at": "2026-07-24T02:48:06.186Z"
+    },
+    {
+      "id": 3,
+      "nombre": "Mar",
+      "dui": "13993939-3",
+      "email": "nfsshif2epico@gmail.com",
+      "telefono": "7000-8909",
+      "password_hash": "$2a$10$xVelZ/GSE8XhmpaS91GtOekQ9gVGiYklZOUbDAPnpeW7PKC9VIPHK",
+      "selfie_url": "/uploads/selfie-1786132550593-562930276.png",
+      "created_at": "2026-08-07T19:55:50.946Z"
     }
   ],
   "casos": [
@@ -35,6 +45,20 @@
       "foto_url": "/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "Desaparecido",
       "created_at": "2026-07-17T05:58:57.009Z"
+    },
+    {
+      "id": 2,
+      "usuario_id": 3,
+      "nombre_desaparecido": "rjjr",
+      "edad": 56,
+      "genero": "Masculino",
+      "fecha_desaparicion": "2023-10-09",
+      "ubicacion_desaparicion": "cerca del Banco Agrícola Santa ana",
+      "descripcion": "vestia una camisa verde y un patalon antiguo color negro, zapatos tipo elegantes, altura 1.76cm",
+      "telefono_contacto": "7038-4155",
+      "foto_url": "/uploads/foto-1786134744168-467914147.jpg",
+      "estado": "Encontrado",
+      "created_at": "2026-08-07T20:32:24.194Z"
     }
   ],
   "alertas": [
@@ -47,7 +71,11 @@
       "video_url": null,
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "pendiente",
-      "created_at": "2026-07-22T17:09:57.858Z"
+      "created_at": "2026-07-22T17:09:57.858Z",
+      "id_estado_alerta": 1,
+      "moderador_id": 3,
+      "fecha_validacion": "2026-08-07T21:00:09.126Z",
+      "comentarios": null
     }
   ]
 }

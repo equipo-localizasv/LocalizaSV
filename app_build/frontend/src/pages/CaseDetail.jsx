@@ -37,6 +37,9 @@ const CaseDetail = () => {
     try {
       const response = await api.put(`/cases/${id}/estado`, { estado: nuevoEstado });
       setCaso((prev) => ({ ...prev, estado: response.data.caso.estado }));
+      window.alert(nuevoEstado === 'Encontrado' 
+        ? 'Aviso: La persona ha sido marcada como localizada.' 
+        : 'Aviso: El caso se ha reabierto como Desaparecido.');
     } catch (err) {
       console.error('Error updating status:', err);
       setError(err.response?.data?.error || 'No se pudo actualizar el estado del caso.');

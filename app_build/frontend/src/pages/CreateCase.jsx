@@ -77,12 +77,14 @@ const CreateCase = () => {
       !telefono_contacto ||
       !foto
     ) {
+      window.alert('Un campo está vacío. Por favor, complete todos los campos y suba una foto.');
       setError('Por favor, complete todos los campos y suba una foto.');
       return;
     }
 
     const PHONE_REGEX = /^[2678]\d{3}-?\d{4}$/;
     if (!PHONE_REGEX.test(telefono_contacto)) {
+      window.alert('Es incorrecto el número telefónico. Debe ser un número salvadoreño válido de 8 dígitos.');
       setError('El teléfono de contacto debe ser un número salvadoreño válido de 8 dígitos.');
       return;
     }
@@ -104,6 +106,7 @@ const CreateCase = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
+      window.alert('Su caso fue publicado correctamente.');
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Error al reportar el caso. Por favor intente de nuevo.');

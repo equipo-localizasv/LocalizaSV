@@ -73,8 +73,9 @@ const mockQuery = (text, params = []) => {
   // 2. INSERT INTO usuarios
   if (normalizedText.includes('INSERT INTO usuarios')) {
     const [nombre, dui, email, telefono, password_hash, selfie_url] = params;
+    const nextId = db.usuarios.length > 0 ? Math.max(...db.usuarios.map(u => u.id)) + 1 : 1;
     const newUser = {
-      id: db.usuarios.length + 1,
+      id: nextId,
       nombre,
       dui,
       email,
@@ -108,8 +109,9 @@ const mockQuery = (text, params = []) => {
       usuario_id, nombre_desaparecido, edad, genero, fecha_desaparicion,
       ubicacion_desaparicion, descripcion, telefono_contacto, foto_url
     ] = params;
+    const nextId = db.casos.length > 0 ? Math.max(...db.casos.map(c => c.id)) + 1 : 1;
     const newCase = {
-      id: db.casos.length + 1,
+      id: nextId,
       usuario_id,
       nombre_desaparecido,
       edad: parseInt(edad),
@@ -214,8 +216,9 @@ const mockQuery = (text, params = []) => {
     const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, id_estado_or_estado] = params;
     
     const isNewSchema = normalizedText.includes('id_estado_alerta');
+    const nextId = db.alertas.length > 0 ? Math.max(...db.alertas.map(a => a.id)) + 1 : 1;
     const newAlert = {
-      id: db.alertas.length + 1,
+      id: nextId,
       caso_id: parseInt(caso_id),
       ubicacion_lat: parseFloat(ubicacion_lat),
       ubicacion_lng: parseFloat(ubicacion_lng),
@@ -260,7 +263,7 @@ const mockQuery = (text, params = []) => {
   }
 
   if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'pendiente'") || 
-      (normalizedText.includes('FROM alertas a') && normalizedText.includes('JOIN estados_alerta ea'))) {
+      (normalizedText.includes('FROM alertas a') && normalizedText.includes('JOIN estados_alerta ea') && normalizedText.includes("'pendiente'"))) {
     const list = db.alertas
       .filter(a => {
         if (a.id_estado_alerta !== undefined) {
@@ -280,14 +283,56 @@ const mockQuery = (text, params = []) => {
     return { rows: list };
   }
 
-  // 13. UPDATE alertas SET estado = $1 WHERE id = $2 RETURNING *
-  if (normalizedText.includes('UPDATE alertas SET estado = $1 WHERE id = $2')) {
-    const [estado, id] = params;
-    const idx = db.alertas.findIndex(a => a.id === parseInt(id));
-    if (idx !== -1) {
-      db.alertas[idx].estado = estado;
-      writeMockDb(db);
-      return { rows: [db.alertas[idx]] };
+  // 12b. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos WHERE a.estado = 'confirmado'
+  if (normalizedText.includes("WHERE a.estado = 'confirmado'")) {
+    const list = db.alertas
+      .filter(a => {
+        if (a.id_estado_alerta !== undefined) {
+          return a.id_estado_alerta === 2;
+        }
+        return a.estado === 'confirmado';
+      })
+      .map(a => {
+        const caso = db.casos.find(c => c.id === a.caso_id);
+        return {
+          ...a,
+          estado: 'confirmado',
+          nombre_desaparecido: caso ? caso.nombre_desaparecido : 'Caso Desconocido'
+        };
+      });
+    list.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
+    return { rows: list };
+  }
+
+  // 13. SELECT id FROM alertas WHERE id = $1
+  if (normalizedText.includes('SELECT id FROM alertas WHERE id = $1')) {
+    const [id] = params;
+    const found = db.alertas.filter(a => a.id === parseInt(id));
+    return { rows: found };
+  }
+
+  // 14. UPDATE alertas SET estado = $1 WHERE id = $2 RETURNING * (or full schema)
+  if (normalizedText.includes('UPDATE alertas SET id_estado_alerta = $1') || normalizedText.includes('UPDATE alertas SET estado = $1 WHERE id = $2')) {
+    if (params.length >= 6) {
+      const [id_estado_alerta, estado, moderador_id, fecha_validacion, comentarios, id] = params;
+      const idx = db.alertas.findIndex(a => a.id === parseInt(id));
+      if (idx !== -1) {
+        db.alertas[idx].id_estado_alerta = parseInt(id_estado_alerta);
+        db.alertas[idx].estado = estado;
+        db.alertas[idx].moderador_id = moderador_id;
+        db.alertas[idx].fecha_validacion = fecha_validacion;
+        db.alertas[idx].comentarios = comentarios;
+        writeMockDb(db);
+        return { rows: [db.alertas[idx]] };
+      }
+    } else {
+      const [estado, id] = params;
+      const idx = db.alertas.findIndex(a => a.id === parseInt(id));
+      if (idx !== -1) {
+        db.alertas[idx].estado = estado;
+        writeMockDb(db);
+        return { rows: [db.alertas[idx]] };
+      }
     }
     return { rows: [] };
   }
