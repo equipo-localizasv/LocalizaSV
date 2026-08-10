@@ -45,10 +45,13 @@ app.use((err, req, res, next) => {
 });
 
 // Server Initialization
+const { initWebSocketServer } = require('./wsServer');
+
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
   });
+  initWebSocketServer(server);
 }
 
 module.exports = app;

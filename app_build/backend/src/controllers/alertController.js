@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { broadcast } = require('../wsServer');
 
 const getActiveAlerts = async (req, res) => {
   try {
@@ -100,9 +101,14 @@ const updateAlertStatus = async (req, res) => {
       ]
     );
 
+    const updatedAlert = result.rows[0];
+
+    // Emit WebSocket event
+    broadcast('alerta_actualizada', updatedAlert);
+
     return res.status(200).json({
       message: 'Estado de la alerta actualizado con éxito.',
-      alerta: result.rows[0]
+      alerta: updatedAlert
     });
   } catch (error) {
     console.error('Error al actualizar estado de la alerta:', error);

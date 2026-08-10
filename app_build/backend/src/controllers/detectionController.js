@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { broadcast } = require('../wsServer');
 
 const createDetection = async (req, res) => {
   const {
@@ -59,6 +60,9 @@ const createDetection = async (req, res) => {
     // Mapear el string estado de vuelta en el json devuelto para mantener compatibilidad
     const newAlert = insertResult.rows[0];
     newAlert.estado = 'pendiente';
+
+    // Emit WebSocket event
+    broadcast('nueva_alerta', newAlert);
 
     // 5. Return the created alert with code 201
     return res.status(201).json({
