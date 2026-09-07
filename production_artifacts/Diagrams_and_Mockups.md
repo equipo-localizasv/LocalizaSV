@@ -1,4 +1,4 @@
-# LocalizaSV - Prototipos Figma y Diagramas del Sistema
+ # LocalizaSV - Prototipos Figma y Diagramas del Sistema
 
 Este documento recopila el diseño de la interfaz de usuario de alta fidelidad (tipo exportación de Figma) y los diagramas estructurales/funcionales que definen la arquitectura y la interacción del sistema de LocalizaSV.
 
