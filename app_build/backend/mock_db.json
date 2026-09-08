@@ -21,14 +21,14 @@
       "created_at": "2026-07-24T02:48:06.186Z"
     },
     {
-      "id": 3,
-      "nombre": "Mar",
-      "dui": "13993939-3",
-      "email": "nfsshif2epico@gmail.com",
-      "telefono": "7000-8909",
-      "password_hash": "$2a$10$xVelZ/GSE8XhmpaS91GtOekQ9gVGiYklZOUbDAPnpeW7PKC9VIPHK",
-      "selfie_url": "/uploads/selfie-1786132550593-562930276.png",
-      "created_at": "2026-08-07T19:55:50.946Z"
+      "id": 4,
+      "nombre": "Anderson Steven Alfaro Grijalva",
+      "dui": "12345678-9",
+      "email": "pulsarrss630@gmail.com",
+      "telefono": "7568-7438",
+      "password_hash": "$2a$10$QPpqmIPe0Qk8fizsFKign.RlDKttD2cniUz5XnsqXbDdb9LDSttxa",
+      "selfie_url": "/uploads/selfie-1786375431004-843334194.jpg",
+      "created_at": "2026-08-10T15:23:51.169Z"
     }
   ],
   "casos": [
@@ -48,17 +48,45 @@
     },
     {
       "id": 2,
-      "usuario_id": 3,
-      "nombre_desaparecido": "rjjr",
-      "edad": 56,
+      "usuario_id": 1,
+      "nombre_desaparecido": "Jose Daniel Mejia Vanegas",
+      "edad": 22,
       "genero": "Masculino",
-      "fecha_desaparicion": "2023-10-09",
-      "ubicacion_desaparicion": "cerca del Banco Agrícola Santa ana",
-      "descripcion": "vestia una camisa verde y un patalon antiguo color negro, zapatos tipo elegantes, altura 1.76cm",
-      "telefono_contacto": "7038-4155",
-      "foto_url": "/uploads/foto-1786134744168-467914147.jpg",
+      "fecha_desaparicion": "2026-02-05",
+      "ubicacion_desaparicion": "En la esquina de mi casa",
+      "descripcion": "Tiene 2 brazos, 2 ojos, una cabeza, 2 piernas y es altoo",
+      "telefono_contacto": "7890-8754",
+      "foto_url": "/uploads/foto-1785254218049-220653248.jpg",
       "estado": "Encontrado",
-      "created_at": "2026-08-07T20:32:24.194Z"
+      "created_at": "2026-07-28T15:56:58.065Z"
+    },
+    {
+      "id": 3,
+      "usuario_id": 3,
+      "nombre_desaparecido": "Al Pacino",
+      "edad": 35,
+      "genero": "Masculino",
+      "fecha_desaparicion": "2026-08-10",
+      "ubicacion_desaparicion": "en el parque San Juan de Atiquizaya",
+      "descripcion": "mide 1.80 metros es color de piel trigueño tiene una sicatris en el rostro tiene acento cubano ",
+      "telefono_contacto": "7568-7438",
+      "foto_url": "/uploads/foto-1786376110135-737012434.jpg",
+      "estado": "Desaparecido",
+      "created_at": "2026-08-10T15:35:10.152Z"
+    },
+    {
+      "id": 4,
+      "usuario_id": 3,
+      "nombre_desaparecido": "messi",
+      "edad": 35,
+      "genero": "Masculino",
+      "fecha_desaparicion": "2026-08-10",
+      "ubicacion_desaparicion": "argentina",
+      "descripcion": "es pequeño",
+      "telefono_contacto": "7568-7438",
+      "foto_url": "/uploads/foto-1786381545630-43547303.jpg",
+      "estado": "Desaparecido",
+      "created_at": "2026-08-10T17:05:45.654Z"
     }
   ],
   "alertas": [
@@ -70,12 +98,98 @@
       "porcentaje_confianza": 88.5,
       "video_url": null,
       "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
-      "estado": "confirmado",
+      "estado": "pendiente",
       "created_at": "2026-07-22T17:09:57.858Z",
-      "id_estado_alerta": 2,
+      "id_estado_alerta": 1,
       "moderador_id": 3,
-      "fecha_validacion": "2026-08-10T15:30:20.033Z",
+      "fecha_validacion": "2026-08-10T15:36:32.851Z",
       "comentarios": null
+    },
+    {
+      "id": 2,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:09:14.847Z",
+      "id_estado_alerta": 1,
+      "estado": "pendiente"
+    },
+    {
+      "id": 3,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:09:42.398Z",
+      "id_estado_alerta": 1,
+      "estado": "pendiente"
+    },
+    {
+      "id": 4,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:10:07.514Z",
+      "id_estado_alerta": 2,
+      "estado": "confirmado",
+      "moderador_id": 2,
+      "fecha_validacion": "2026-07-31T21:10:07.524Z",
+      "comentarios": "Confirmado en prueba de FCM"
+    },
+    {
+      "id": 5,
+      "caso_id": 1,
+      "ubicacion_lat": 13.69294,
+      "ubicacion_lng": -89.21819,
+      "porcentaje_confianza": 92.5,
+      "video_url": null,
+      "foto_evidencia_url": null,
+      "fecha_deteccion": "2026-07-31T21:28:16.682Z",
+      "id_estado_alerta": 2,
+      "estado": "confirmado",
+      "moderador_id": 2,
+      "fecha_validacion": "2026-07-31T21:28:16.698Z",
+      "comentarios": "Confirmado en prueba de FCM"
+    }
+  ],
+  "tokens_fcm": [
+    {
+      "id": 1,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-777",
+      "created_at": "2026-07-31T21:09:42.388Z"
+    },
+    {
+      "id": 2,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-888",
+      "created_at": "2026-07-31T21:10:07.504Z"
+    },
+    {
+      "id": 3,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-999",
+      "created_at": "2026-07-31T21:27:59.273Z"
+    },
+    {
+      "id": 4,
+      "usuario_id": 2,
+      "token": "mock-fcm-test-token-1000",
+      "created_at": "2026-07-31T21:28:16.667Z"
+    },
+    {
+      "id": 5,
+      "usuario_id": 3,
+      "token": "mock-fcm-token-3-37005",
+      "created_at": "2026-08-10T15:24:04.917Z"
     }
   ]
 }

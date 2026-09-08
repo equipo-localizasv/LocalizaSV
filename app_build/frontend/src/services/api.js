@@ -20,5 +20,9 @@ api.interceptors.request.use(
   }
 );
 
+export const registerDeviceToken = (token) => {
+  return api.post('/notifications/register-token', { token });
+};
+
 export default api;
 export { API_BASE_URL };

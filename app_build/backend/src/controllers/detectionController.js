@@ -25,7 +25,7 @@ const createDetection = async (req, res) => {
 
   try {
     // 2. Verify that the caso_id exists in the Casos table
-    const caseCheck = await db.query('SELECT id FROM casos WHERE id = $1', [caso_id]);
+    const caseCheck = await db.query('SELECT id, nombre_desaparecido FROM casos WHERE id = $1', [caso_id]);
     
     if (caseCheck.rows.length === 0) {
       return res.status(404).json({
@@ -33,11 +33,20 @@ const createDetection = async (req, res) => {
       });
     }
 
+    const nombreDesaparecido = caseCheck.rows[0]?.nombre_desaparecido || `Caso #${caso_id}`;
+
     // 3. Obtener el ID del estado 'Pendiente'
-    const statusResult = await db.query(
-      "SELECT id FROM estados_alerta WHERE nombre = 'Pendiente'"
-    );
-    const id_estado_alerta = statusResult.rows[0]?.id || 1;
+    let id_estado_alerta = 1;
+    try {
+      const statusResult = await db.query(
+        "SELECT id FROM estados_alerta WHERE LOWER(nombre) = 'pendiente'"
+      );
+      if (statusResult.rows.length > 0) {
+        id_estado_alerta = statusResult.rows[0].id;
+      }
+    } catch (e) {
+      console.warn('⚠️ No se pudo consultar estados_alerta, usando id=1 por defecto.');
+    }
 
     // 4. Create a record in the Alertas table
     const insertResult = await db.query(
@@ -57,9 +66,17 @@ const createDetection = async (req, res) => {
       ]
     );
 
-    // Mapear el string estado de vuelta en el json devuelto para mantener compatibilidad
-    const newAlert = insertResult.rows[0];
-    newAlert.estado = 'pendiente';
+    const newAlert = {
+      ...insertResult.rows[0],
+      estado: 'pendiente',
+      nombre_desaparecido: nombreDesaparecido
+    };
+
+    // Broadcast evento WebSocket en tiempo real 'nueva_alerta'
+    const appModule = require('../app');
+    if (appModule && typeof appModule.broadcast === 'function') {
+      appModule.broadcast('nueva_alerta', newAlert);
+    }
 
     // Emit WebSocket event
     broadcast('nueva_alerta', newAlert);

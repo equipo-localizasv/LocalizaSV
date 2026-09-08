@@ -123,8 +123,39 @@ const getMe = async (req, res) => {
   }
 };
 
+const updateProfile = async (req, res) => {
+  const { nombre } = req.body;
+  const userId = req.user.id;
+
+  try {
+    let updateQuery = 'UPDATE usuarios SET nombre = $1';
+    const queryParams = [nombre];
+
+    if (req.file) {
+      const selfie_url = `/uploads/${req.file.filename}`;
+      updateQuery += ', selfie_url = $2 WHERE id = $3 RETURNING id, nombre, dui, email, telefono, selfie_url, created_at';
+      queryParams.push(selfie_url, userId);
+    } else {
+      updateQuery += ' WHERE id = $2 RETURNING id, nombre, dui, email, telefono, selfie_url, created_at';
+      queryParams.push(userId);
+    }
+
+    const result = await db.query(updateQuery, queryParams);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    return res.status(200).json({ message: 'Perfil actualizado con éxito.', usuario: result.rows[0] });
+  } catch (error) {
+    console.error('Error en updateProfile:', error);
+    return res.status(500).json({ error: 'Error al actualizar el perfil.' });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  updateProfile
 };

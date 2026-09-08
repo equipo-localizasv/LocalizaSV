@@ -37,6 +37,9 @@ const Navbar = () => {
             <Link to="/reportar" className="navbar-item">
               Reportar Caso
             </Link>
+            <Link to="/perfil" className="navbar-item">
+              Mi Perfil
+            </Link>
             <div className="user-badge">
               <img 
                 src={getImageUrl(user.selfie_url)} 

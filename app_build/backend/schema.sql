@@ -53,3 +53,16 @@ CREATE TABLE IF NOT EXISTS alertas (
     fecha_deteccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Índices para optimizar las consultas de alertas
+CREATE INDEX IF NOT EXISTS idx_alertas_caso_id ON alertas(caso_id);
+CREATE INDEX IF NOT EXISTS idx_alertas_id_estado_alerta ON alertas(id_estado_alerta);
+CREATE INDEX IF NOT EXISTS idx_alertas_fecha_deteccion ON alertas(fecha_deteccion DESC);
+
+-- Tabla para almacenar tokens de dispositivos móviles para notificaciones push
+CREATE TABLE IF NOT EXISTS tokens_fcm (
+    id SERIAL PRIMARY KEY,
+    usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+    token VARCHAR(512) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
