@@ -2,6 +2,23 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
+const DEPARTAMENTOS_SV = [
+  'San Salvador',
+  'La Libertad',
+  'Santa Ana',
+  'San Miguel',
+  'Sonsonate',
+  'Ahuachapán',
+  'Usulután',
+  'La Paz',
+  'Cuscatlán',
+  'Chalatenango',
+  'Cabañas',
+  'Morazán',
+  'San Vicente',
+  'La Unión'
+];
+
 const CreateCase = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -11,6 +28,7 @@ const CreateCase = () => {
     edad: '',
     genero: 'Masculino',
     fecha_desaparicion: '',
+    departamento: 'San Salvador',
     ubicacion_desaparicion: '',
     descripcion: '',
     telefono_contacto: ''
@@ -20,6 +38,34 @@ const CreateCase = () => {
   const [fotoPreview, setFotoPreview] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      alert('La geolocalización no es soportada por su navegador.');
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const coordsStr = `GPS (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
+        setForm((prev) => ({
+          ...prev,
+          ubicacion_desaparicion: prev.ubicacion_desaparicion 
+            ? `${prev.ubicacion_desaparicion} - ${coordsStr}`
+            : `${coordsStr}, ${prev.departamento}`
+        }));
+        setGettingLocation(false);
+      },
+      (err) => {
+        console.warn('Geolocation error:', err);
+        alert('No se pudo obtener la ubicación GPS automáticamente. Por favor ingrésela manualmente.');
+        setGettingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -224,14 +270,60 @@ const CreateCase = () => {
           </div>
         </div>
 
+        <div className="meta-grid">
+          <div className="form-group">
+            <label className="form-label" htmlFor="departamento">Departamento (El Salvador)</label>
+            <select
+              id="departamento"
+              name="departamento"
+              className="form-control"
+              value={form.departamento}
+              onChange={(e) => {
+                const dep = e.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  departamento: dep,
+                  ubicacion_desaparicion: prev.ubicacion_desaparicion ? prev.ubicacion_desaparicion : `${dep}, El Salvador`
+                }));
+              }}
+              disabled={loading}
+            >
+              {DEPARTAMENTOS_SV.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Geolocalización Inmediata</label>
+            <button
+              type="button"
+              onClick={handleGetLocation}
+              disabled={loading || gettingLocation}
+              className="btn btn-secondary w-100"
+              style={{
+                height: '42px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                fontSize: '0.85rem'
+              }}
+            >
+              <span>📍</span>
+              <span>{gettingLocation ? 'Obteniendo GPS...' : 'Usar mi GPS actual'}</span>
+            </button>
+          </div>
+        </div>
+
         <div className="form-group">
-          <label className="form-label" htmlFor="ubicacion_desaparicion">Último lugar donde fue visto(a)</label>
+          <label className="form-label" htmlFor="ubicacion_desaparicion">Punto exacto o referencia del último avistamiento</label>
           <input
             id="ubicacion_desaparicion"
             name="ubicacion_desaparicion"
             type="text"
             className="form-control"
-            placeholder="Ej. Cerca de Metrocentro San Salvador, San Salvador"
+            placeholder="Ej. Cerca de Metrocentro San Salvador, sobre Boulevard de los Héroes"
             value={form.ubicacion_desaparicion}
             onChange={handleInputChange}
             disabled={loading}

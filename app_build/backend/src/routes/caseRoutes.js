@@ -16,4 +16,11 @@ router.post('/', authMiddleware, upload.single('foto'), caseController.createCas
 // Update case status (protected, restricted to owner)
 router.put('/:id/estado', authMiddleware, express.json(), caseController.updateCaseStatus);
 
+// Tarea 5: Aceptar búsqueda de caso (protected)
+router.put('/:id/aceptar', authMiddleware, caseController.acceptSearch);
+
+// Tarea 6: Consultar estado de rescate de un caso (public view)
+router.get('/:id/estado', caseController.getRescueStatus);
+
 module.exports = router;
+

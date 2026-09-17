@@ -1,9 +1,6 @@
 const db = require('../config/database');
-<<<<<<< HEAD
 const { broadcast } = require('../wsServer');
-=======
 const { sendNotificationToAll } = require('../services/notifications');
->>>>>>> 703923d02561cfc9719a4f587f9292a65555b69b
 
 const getPendingAlerts = async (req, res) => {
   try {
@@ -103,22 +100,15 @@ const updateAlertStatus = async (req, res) => {
       [finalIdEstado, finalEstado, moderador_id, fecha_validacion, comentarios, parseInt(id)]
     );
 
-<<<<<<< HEAD
-    const updatedAlert = result.rows[0];
-
-    // Emit WebSocket event
-    broadcast('alerta_actualizada', updatedAlert);
-=======
     if (result.rows.length === 0) {
       return res.status(404).json({ error: `La alerta con ID ${id} no existe.` });
     }
 
     const updatedAlert = result.rows[0];
 
-    // 1. Broadcast WebSocket event in real-time
-    const appModule = require('../app');
-    if (appModule && typeof appModule.broadcast === 'function') {
-      appModule.broadcast('alerta_actualizada', updatedAlert);
+    // 1. Emit WebSocket event in real-time
+    if (typeof broadcast === 'function') {
+      broadcast('alerta_actualizada', updatedAlert);
     }
 
     // 2. Trigger push notification if status was updated to Confirmed (id_estado_alerta = 2)
@@ -146,7 +136,7 @@ const updateAlertStatus = async (req, res) => {
         console.error('[Notification Trigger Error] Failed to query case or send push:', triggerError);
       }
     }
->>>>>>> 703923d02561cfc9719a4f587f9292a65555b69b
+
 
     return res.status(200).json({
       message: 'Estado de la alerta actualizado con éxito.',

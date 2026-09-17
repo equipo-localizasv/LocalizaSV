@@ -70,6 +70,34 @@ const Profile = () => {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
+        {user && (
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.6)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '8px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Rol de Cuenta:</span>
+              <span className={`role-chip role-chip-${user.rol || 'ciudadano'}`}>
+                {user.rol === 'moderador' ? '👨‍✈️ Moderador' : user.rol === 'autoridad' ? '👮 Autoridad' : '👤 Ciudadano'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Correo:</span>
+              <span style={{ fontSize: '0.85rem', color: '#f1f5f9', fontWeight: 500 }}>{user.email}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>DUI:</span>
+              <span style={{ fontSize: '0.85rem', color: '#f1f5f9', fontWeight: 500 }}>{user.dui}</span>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="nombre">Nombre Completo</label>

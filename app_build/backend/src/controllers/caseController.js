@@ -163,9 +163,99 @@ const updateCaseStatus = async (req, res) => {
   }
 };
 
+/**
+ * Tarea 5: Endpoint aceptar búsqueda
+ * PUT /api/casos/:id/aceptar
+ * Registra que un usuario voluntario/rescatista aceptó la búsqueda activa
+ */
+const acceptSearch = async (req, res) => {
+  const { id } = req.params;
+  const usuarioId = req.user.id;
+
+  try {
+    const caseResult = await db.query('SELECT * FROM casos WHERE id = $1', [id]);
+    if (caseResult.rows.length === 0) {
+      return res.status(404).json({ error: `El caso con ID ${id} no existe.` });
+    }
+
+    const caso = caseResult.rows[0];
+
+    // Verificar si el caso ya fue resuelto
+    if (caso.estado === 'Encontrado') {
+      return res.status(400).json({ error: 'Este caso ya ha sido resuelto y marcado como Encontrado.' });
+    }
+
+    // Verificar que el caso no tenga ya un usuario asignado activo
+    if (caso.usuario_asignado_id && caso.usuario_asignado_id !== usuarioId && caso.estado === 'En Proceso de Rescate') {
+      return res.status(400).json({
+        error: 'Este caso ya tiene un voluntario asignado en proceso de rescate activo.'
+      });
+    }
+
+    const fechaAceptacion = new Date().toISOString();
+    const updateResult = await db.query(
+      `UPDATE casos 
+       SET estado = $1, usuario_asignado_id = $2, fecha_aceptacion = $3 
+       WHERE id = $4 
+       RETURNING *`,
+      ['En Proceso de Rescate', usuarioId, fechaAceptacion, id]
+    );
+
+    const updatedCase = updateResult.rows[0];
+
+    // Emitir evento en tiempo real vía WebSocket
+    const { broadcast } = require('../wsServer');
+    if (typeof broadcast === 'function') {
+      broadcast('caso_actualizado', updatedCase);
+    }
+
+    return res.status(200).json({
+      message: '¡Has aceptado la búsqueda de este caso! El estado ha cambiado a "En Proceso de Rescate".',
+      caso: updatedCase
+    });
+  } catch (error) {
+    console.error('Error al aceptar búsqueda del caso:', error);
+    return res.status(500).json({ error: 'Ocurrió un error al procesar la aceptación de la búsqueda.' });
+  }
+};
+
+/**
+ * Tarea 6: Endpoint estado de rescate
+ * GET /api/casos/:id/estado
+ * Devuelve el estado operativo de rescate para desplegar el banner dinámico
+ */
+const getRescueStatus = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const caseResult = await db.query('SELECT * FROM casos WHERE id = $1', [id]);
+    if (caseResult.rows.length === 0) {
+      return res.status(404).json({ error: `El caso con ID ${id} no existe.` });
+    }
+
+    const caso = caseResult.rows[0];
+    const enProceso = caso.estado === 'En Proceso de Rescate';
+
+    return res.status(200).json({
+      caso_id: parseInt(id),
+      estado: caso.estado,
+      en_proceso_rescate: enProceso,
+      usuario_asignado_id: caso.usuario_asignado_id || null,
+      rescatista_nombre: caso.rescatista_nombre || null,
+      fecha_aceptacion: caso.fecha_aceptacion || null
+    });
+  } catch (error) {
+    console.error('Error al consultar estado de rescate:', error);
+    return res.status(500).json({ error: 'Error al consultar estado de rescate del caso.' });
+  }
+};
+
 module.exports = {
   createCase,
   getCases,
   getCaseById,
-  updateCaseStatus
+  updateCaseStatus,
+  acceptSearch,
+  getRescueStatus
 };
+

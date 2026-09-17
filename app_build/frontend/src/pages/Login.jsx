@@ -27,7 +27,13 @@ const Login = () => {
       const response = await api.post('/auth/login', { email, password });
       const { token, usuario } = response.data;
       login(token, usuario);
-      navigate('/');
+      if (usuario?.rol === 'moderador') {
+        navigate('/moderacion');
+      } else if (usuario?.rol === 'autoridad') {
+        navigate('/autoridades');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo iniciar sesión. Verifique sus credenciales.');
     } finally {

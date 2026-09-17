@@ -12,6 +12,8 @@ const caseRoutes = require('./routes/caseRoutes');
 const detectionRoutes = require('./routes/detectionRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const cameraRoutes = require('./routes/cameraRoutes');
+const sightingRoutes = require('./routes/sightingRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -35,9 +37,14 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
+app.use('/api/casos', caseRoutes); // Soporte bilingüe / según especificación del plan maestro
 app.use('/api/detecciones', detectionRoutes);
 app.use('/api/alertas', alertRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/camaras', cameraRoutes);
+app.use('/api/avistamientos', sightingRoutes);
+
+
 
 // Base route for API status check
 app.get('/', (req, res) => {
@@ -50,47 +57,13 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
 });
 
-<<<<<<< HEAD
-// Server Initialization
-const { initWebSocketServer } = require('./wsServer');
-
-if (require.main === module) {
-  const server = app.listen(PORT, () => {
-    console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-=======
 // Server & WebSocket Initialization
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ noServer: true });
-
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
-});
-
-wss.on('connection', (ws) => {
-  console.log('🔌 [WebSocket] Cliente conectado al servidor principal LocalizaSV.');
-  ws.on('close', () => {
-    console.log('🔌 [WebSocket] Cliente desconectado.');
-  });
-});
-
-/**
- * Transmite un evento a todos los clientes WebSocket conectados
- */
-const broadcast = (event, data) => {
-  const message = JSON.stringify({ event, data });
-  wss.clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-};
+const { initWebSocketServer, broadcast } = require('./wsServer');
 
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT} with WebSocket support.`);
->>>>>>> 703923d02561cfc9719a4f587f9292a65555b69b
   });
   initWebSocketServer(server);
 }
@@ -98,4 +71,5 @@ if (require.main === module) {
 module.exports = app;
 module.exports.server = server;
 module.exports.broadcast = broadcast;
+
 

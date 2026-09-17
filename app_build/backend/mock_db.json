@@ -8,6 +8,7 @@
       "telefono": "6961-7897",
       "password_hash": "$2a$10$D3y7Gp9LeLNaIJxxl0WcVeqHZQB/9vJjr/iH.y5sle4oGJR.NfvOi",
       "selfie_url": "/uploads/selfie-1784267763279-96526501.jpeg",
+      "rol": "ciudadano",
       "created_at": "2026-07-17T05:56:03.611Z"
     },
     {
@@ -18,6 +19,7 @@
       "telefono": "7999-9999",
       "password_hash": "$2a$10$.vcoxQ5Ft6amPBa5AESs9uDLbJpBqUn8aUi97GdVnWaOog.Yd4qQm",
       "selfie_url": "/uploads/selfie-1784861285906-554537158.jpg",
+      "rol": "moderador",
       "created_at": "2026-07-24T02:48:06.186Z"
     },
     {
@@ -28,7 +30,30 @@
       "telefono": "7568-7438",
       "password_hash": "$2a$10$QPpqmIPe0Qk8fizsFKign.RlDKttD2cniUz5XnsqXbDdb9LDSttxa",
       "selfie_url": "/uploads/selfie-1786375431004-843334194.jpg",
+      "rol": "autoridad",
       "created_at": "2026-08-10T15:23:51.169Z"
+    },
+    {
+      "id": 5,
+      "nombre": "Juan Chito Perez Vanegas",
+      "dui": "12345679-8",
+      "email": "panchitoperez12@gmail.com",
+      "telefono": "7172-7374",
+      "password_hash": "$2a$10$4MoYGC96FMuCc6yEv0i2su5/WNPwjI6ux2QlnzOPwarNI6h.cWv9K",
+      "selfie_url": "/uploads/selfie-1789400149557-607927490.jpg",
+      "rol": "moderador",
+      "created_at": "2026-09-14T15:35:49.893Z"
+    },
+    {
+      "id": 6,
+      "nombre": "Manito De los Angeles",
+      "dui": "21131311-3",
+      "email": "manitolucha241@gamail.com",
+      "telefono": "7654-5155",
+      "password_hash": "$2a$10$ov3qOCI1E3gAOCvKrkXgk.i38gTxnjPY1Q897gYwRDuuAm3dSG43.",
+      "selfie_url": "/uploads/selfie-1789407880241-192302706.jpg",
+      "rol": "autoridad",
+      "created_at": "2026-09-14T17:44:40.490Z"
     }
   ],
   "casos": [
@@ -44,7 +69,9 @@
       "telefono_contacto": "6961-7897",
       "foto_url": "/uploads/foto-1784267936998-140957392.jpeg",
       "estado": "Desaparecido",
-      "created_at": "2026-07-17T05:58:57.009Z"
+      "created_at": "2026-07-17T05:58:57.009Z",
+      "usuario_asignado_id": 1,
+      "fecha_aceptacion": "2026-09-14T15:25:20.970Z"
     },
     {
       "id": 2,
@@ -59,105 +86,115 @@
       "foto_url": "/uploads/foto-1785254218049-220653248.jpg",
       "estado": "Encontrado",
       "created_at": "2026-07-28T15:56:58.065Z"
-    },
-    {
-      "id": 3,
-      "usuario_id": 3,
-      "nombre_desaparecido": "Al Pacino",
-      "edad": 35,
-      "genero": "Masculino",
-      "fecha_desaparicion": "2026-08-10",
-      "ubicacion_desaparicion": "en el parque San Juan de Atiquizaya",
-      "descripcion": "mide 1.80 metros es color de piel trigueño tiene una sicatris en el rostro tiene acento cubano ",
-      "telefono_contacto": "7568-7438",
-      "foto_url": "/uploads/foto-1786376110135-737012434.jpg",
-      "estado": "Desaparecido",
-      "created_at": "2026-08-10T15:35:10.152Z"
-    },
-    {
-      "id": 4,
-      "usuario_id": 3,
-      "nombre_desaparecido": "messi",
-      "edad": 35,
-      "genero": "Masculino",
-      "fecha_desaparicion": "2026-08-10",
-      "ubicacion_desaparicion": "argentina",
-      "descripcion": "es pequeño",
-      "telefono_contacto": "7568-7438",
-      "foto_url": "/uploads/foto-1786381545630-43547303.jpg",
-      "estado": "Desaparecido",
-      "created_at": "2026-08-10T17:05:45.654Z"
     }
   ],
   "alertas": [
     {
       "id": 1,
       "caso_id": 1,
-      "ubicacion_lat": 13.69294,
-      "ubicacion_lng": -89.21819,
-      "porcentaje_confianza": 88.5,
+      "ubicacion_lat": 13.9785,
+      "ubicacion_lng": -89.7523,
+      "porcentaje_confianza": 89.5,
       "video_url": null,
-      "foto_evidencia_url": "http://localhost:3001/uploads/foto-1784267936998-140957392.jpeg",
-      "estado": "pendiente",
-      "created_at": "2026-07-22T17:09:57.858Z",
-      "id_estado_alerta": 1,
-      "moderador_id": 3,
-      "fecha_validacion": "2026-08-10T15:36:32.851Z",
-      "comentarios": null
+      "foto_evidencia_url": "/uploads/foto-1784267936998-140957392.jpeg",
+      "estado": "confirmado",
+      "created_at": "2026-09-14T08:30:00.000Z",
+      "id_estado_alerta": 2,
+      "tipo_origen": "Cámara de Seguridad Urbana",
+      "ubicacion_nombre": "Atiquizaya, Ahuachapán Norte",
+      "comentarios": null,
+      "moderador_id": 5,
+      "fecha_validacion": "2026-09-14T15:52:05.910Z"
     },
     {
       "id": 2,
       "caso_id": 1,
-      "ubicacion_lat": 13.69294,
-      "ubicacion_lng": -89.21819,
-      "porcentaje_confianza": 92.5,
+      "ubicacion_lat": 13.7013,
+      "ubicacion_lng": -89.2244,
+      "porcentaje_confianza": 92,
       "video_url": null,
-      "foto_evidencia_url": null,
-      "fecha_deteccion": "2026-07-31T21:09:14.847Z",
-      "id_estado_alerta": 1,
-      "estado": "pendiente"
+      "foto_evidencia_url": "/uploads/imagen-1789399531789-247672407.jpg",
+      "fecha_deteccion": "2026-09-14T09:15:00.000Z",
+      "id_estado_alerta": 3,
+      "estado": "falso positivo",
+      "tipo_origen": "Detección Automática por Cámara IP",
+      "ubicacion_nombre": "Plaza Divino Salvador del Mundo",
+      "comentarios": null,
+      "moderador_id": 5,
+      "fecha_validacion": "2026-09-14T15:52:01.924Z"
     },
     {
       "id": 3,
       "caso_id": 1,
-      "ubicacion_lat": 13.69294,
-      "ubicacion_lng": -89.21819,
-      "porcentaje_confianza": 92.5,
-      "video_url": null,
-      "foto_evidencia_url": null,
-      "fecha_deteccion": "2026-07-31T21:09:42.398Z",
+      "ubicacion_lat": 13.7025,
+      "ubicacion_lng": -89.223,
+      "porcentaje_confianza": 85,
+      "foto_evidencia_url": "/uploads/foto-1789400982039-767740440.jpeg",
       "id_estado_alerta": 1,
-      "estado": "pendiente"
+      "estado": "pendiente",
+      "tipo_origen": "Avistamiento Ciudadano",
+      "ubicacion_nombre": "Ubicación reportada por ciudadano",
+      "comentarios": "Posible avistamiento reportado por la comunidad.",
+      "created_at": "2026-09-14T15:49:42.044Z"
     },
     {
       "id": 4,
       "caso_id": 1,
-      "ubicacion_lat": 13.69294,
-      "ubicacion_lng": -89.21819,
-      "porcentaje_confianza": 92.5,
+      "ubicacion_lat": 13.7013,
+      "ubicacion_lng": -89.2244,
+      "porcentaje_confianza": 93.5,
       "video_url": null,
-      "foto_evidencia_url": null,
-      "fecha_deteccion": "2026-07-31T21:10:07.514Z",
+      "foto_evidencia_url": "https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=600&q=80",
+      "fecha_deteccion": "2026-09-14T15:50:58.528Z",
       "id_estado_alerta": 2,
       "estado": "confirmado",
-      "moderador_id": 2,
-      "fecha_validacion": "2026-07-31T21:10:07.524Z",
-      "comentarios": "Confirmado en prueba de FCM"
+      "moderador_id": 5,
+      "fecha_validacion": "2026-09-14T15:51:28.329Z",
+      "comentarios": null
+    }
+  ],
+  "camaras": [
+    {
+      "id": 1,
+      "nombre": "Cámara 01 - Plaza Salvador del Mundo",
+      "ubicacion": "Plaza Divino Salvador del Mundo, San Salvador",
+      "lat": 13.7013,
+      "lng": -89.2244,
+      "stream_url": "https://images.unsplash.com/photo-1557597774-9d273605dfa9?auto=format&fit=crop&w=600&q=80",
+      "tipo": "Seguridad Vial / Tráfico",
+      "estado": "activa",
+      "fps": 30,
+      "resolucion": "1080p FHD",
+      "cobertura": "360° Panorámica",
+      "ultima_actividad": "2026-09-14T15:40:00.000Z"
     },
     {
-      "id": 5,
-      "caso_id": 1,
-      "ubicacion_lat": 13.69294,
-      "ubicacion_lng": -89.21819,
-      "porcentaje_confianza": 92.5,
-      "video_url": null,
-      "foto_evidencia_url": null,
-      "fecha_deteccion": "2026-07-31T21:28:16.682Z",
-      "id_estado_alerta": 2,
-      "estado": "confirmado",
-      "moderador_id": 2,
-      "fecha_validacion": "2026-07-31T21:28:16.698Z",
-      "comentarios": "Confirmado en prueba de FCM"
+      "id": 2,
+      "nombre": "Cámara 02 - Terminal de Occidente",
+      "ubicacion": "Boulevard Venezuela, San Salvador",
+      "lat": 13.6929,
+      "lng": -89.2182,
+      "stream_url": "https://images.unsplash.com/photo-1542296332-2e4473faf563?auto=format&fit=crop&w=600&q=80",
+      "tipo": "Tránsito Peatonal / Pasajeros",
+      "estado": "activa",
+      "fps": 25,
+      "resolucion": "1080p FHD",
+      "cobertura": "Acceso Principal",
+      "ultima_actividad": "2026-09-14T15:41:00.000Z"
+    },
+    {
+      "id": 3,
+      "nombre": "Dron Táctico 01 - Búsqueda Aérea",
+      "ubicacion": "Zona Rural Atiquizaya, Ahuachapán",
+      "lat": 13.9785,
+      "lng": -89.7523,
+      "stream_url": "https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=600&q=80",
+      "tipo": "Patrullaje Solidario Aéreo",
+      "estado": "activa",
+      "fps": 60,
+      "resolucion": "4K UHD",
+      "cobertura": "Radio 5 km",
+      "ultima_actividad": "2026-09-14T15:42:00.000Z"
     }
   ],
   "tokens_fcm": [
@@ -190,6 +227,18 @@
       "usuario_id": 3,
       "token": "mock-fcm-token-3-37005",
       "created_at": "2026-08-10T15:24:04.917Z"
+    },
+    {
+      "id": 6,
+      "usuario_id": 1,
+      "token": "mock-fcm-token-1-99898",
+      "created_at": "2026-09-14T15:37:22.566Z"
+    },
+    {
+      "id": 7,
+      "usuario_id": 1,
+      "token": "mock-fcm-token-1-10696",
+      "created_at": "2026-09-14T17:37:53.380Z"
     }
   ]
 }

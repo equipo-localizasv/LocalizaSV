@@ -72,7 +72,7 @@ const mockQuery = (text, params = []) => {
 
   // 2. INSERT INTO usuarios
   if (normalizedText.includes('INSERT INTO usuarios')) {
-    const [nombre, dui, email, telefono, password_hash, selfie_url] = params;
+    const [nombre, dui, email, telefono, password_hash, selfie_url, rol] = params;
     const nextId = db.usuarios.length > 0 ? Math.max(...db.usuarios.map(u => u.id)) + 1 : 1;
     const newUser = {
       id: nextId,
@@ -82,6 +82,7 @@ const mockQuery = (text, params = []) => {
       telefono,
       password_hash,
       selfie_url,
+      rol: rol || 'ciudadano',
       created_at: new Date().toISOString()
     };
     db.usuarios.push(newUser);
@@ -92,14 +93,20 @@ const mockQuery = (text, params = []) => {
   // 3. SELECT * FROM usuarios WHERE email = $1
   if (normalizedText.includes('SELECT * FROM usuarios WHERE email = $1')) {
     const [email] = params;
-    const found = db.usuarios.filter(u => u.email === email);
+    const found = db.usuarios.filter(u => u.email === email).map(u => ({
+      ...u,
+      rol: u.rol || 'ciudadano'
+    }));
     return { rows: found };
   }
 
   // 4. SELECT id, nombre, dui... FROM usuarios WHERE id = $1
-  if (normalizedText.includes('SELECT id, nombre, dui, email, telefono, selfie_url, created_at FROM usuarios WHERE id = $1')) {
+  if (normalizedText.includes('FROM usuarios WHERE id = $1')) {
     const [id] = params;
-    const found = db.usuarios.filter(u => u.id === parseInt(id));
+    const found = db.usuarios.filter(u => u.id === parseInt(id)).map(u => ({
+      ...u,
+      rol: u.rol || 'ciudadano'
+    }));
     return { rows: found };
   }
 
@@ -133,7 +140,13 @@ const mockQuery = (text, params = []) => {
   if (normalizedText.includes('SELECT c.*, u.nombre as creador_nombre FROM casos c JOIN usuarios u ON c.usuario_id = u.id')) {
     let list = db.casos.map(c => {
       const user = db.usuarios.find(u => u.id === c.usuario_id);
-      return { ...c, creador_nombre: user ? user.nombre : 'Usuario Anónimo' };
+      const rescuer = c.usuario_asignado_id ? db.usuarios.find(u => u.id === c.usuario_asignado_id) : null;
+      return { 
+        ...c, 
+        creador_nombre: user ? user.nombre : 'Usuario Anónimo',
+        rescatista_nombre: rescuer ? rescuer.nombre : null,
+        rescatista_id: c.usuario_asignado_id || null
+      };
     });
 
     // Handle filters
@@ -174,13 +187,16 @@ const mockQuery = (text, params = []) => {
     if (!caso) return { rows: [] };
 
     const user = db.usuarios.find(u => u.id === caso.usuario_id);
+    const rescuer = caso.usuario_asignado_id ? db.usuarios.find(u => u.id === caso.usuario_asignado_id) : null;
     return {
       rows: [{
         ...caso,
         creador_nombre: user ? user.nombre : 'Usuario Anónimo',
         creador_email: user ? user.email : '',
         creador_telefono: user ? user.telefono : '',
-        creador_selfie_url: user ? user.selfie_url : ''
+        creador_selfie_url: user ? user.selfie_url : '',
+        rescatista_nombre: rescuer ? rescuer.nombre : null,
+        rescatista_id: caso.usuario_asignado_id || null
       }]
     };
   }
@@ -190,6 +206,26 @@ const mockQuery = (text, params = []) => {
     const [id] = params;
     const caso = db.casos.find(c => c.id === parseInt(id));
     return { rows: caso ? [caso] : [] };
+  }
+
+  // 9.1 UPDATE casos SET estado = $1, usuario_asignado_id = $2, fecha_aceptacion = $3 WHERE id = $4
+  if (normalizedText.includes('UPDATE casos SET') && normalizedText.includes('usuario_asignado_id')) {
+    const [estado, usuario_asignado_id, fecha_aceptacion, id] = params;
+    const idx = db.casos.findIndex(c => c.id === parseInt(id));
+    if (idx !== -1) {
+      db.casos[idx].estado = estado;
+      db.casos[idx].usuario_asignado_id = parseInt(usuario_asignado_id);
+      db.casos[idx].fecha_aceptacion = fecha_aceptacion;
+      writeMockDb(db);
+      const rescuer = db.usuarios.find(u => u.id === parseInt(usuario_asignado_id));
+      return { 
+        rows: [{
+          ...db.casos[idx],
+          rescatista_nombre: rescuer ? rescuer.nombre : null
+        }] 
+      };
+    }
+    return { rows: [] };
   }
 
   // 9. UPDATE casos SET estado = $1 WHERE id = $2 RETURNING *
@@ -219,7 +255,7 @@ const mockQuery = (text, params = []) => {
   }
 
   // 10.6 SELECT id FROM estados_alerta WHERE nombre = $1 or literal (broadened)
-  if (normalizedText.includes('estados_alerta')) {
+  if (!normalizedText.includes('FROM alertas') && normalizedText.includes('estados_alerta')) {
     let name = 'Pendiente';
     if (params.length > 0) name = params[0];
     else if (normalizedText.includes("'pendiente'") || normalizedText.includes("'Pendiente'")) name = 'Pendiente';
@@ -233,32 +269,90 @@ const mockQuery = (text, params = []) => {
 
   // 11. INSERT INTO alertas
   if (normalizedText.includes('INSERT INTO alertas')) {
-    const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, id_estado_or_estado] = params;
-    
-    const isNewSchema = normalizedText.includes('id_estado_alerta');
+    let newAlert;
     const nextId = db.alertas.length > 0 ? Math.max(...db.alertas.map(a => a.id)) + 1 : 1;
-    const newAlert = {
-      id: nextId,
-      caso_id: parseInt(caso_id),
-      ubicacion_lat: parseFloat(ubicacion_lat),
-      ubicacion_lng: parseFloat(ubicacion_lng),
-      porcentaje_confianza: parseFloat(porcentaje_confianza),
-      video_url: video_url || null,
-      foto_evidencia_url: foto_evidencia_url || null,
-      fecha_deteccion: new Date().toISOString()
-    };
-    
-    if (isNewSchema) {
-      newAlert.id_estado_alerta = parseInt(id_estado_or_estado);
-      newAlert.estado = id_estado_or_estado === 1 ? 'pendiente' : (id_estado_or_estado === 2 ? 'confirmado' : 'falso positivo');
+
+    if (params.length >= 9) {
+      // Sighting format: [caso_id, lat, lng, confianza, foto, id_estado, tipo_origen, ubicacion_nombre, comentarios]
+      const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, foto_evidencia_url, id_estado_alerta, tipo_origen, ubicacion_nombre, comentarios] = params;
+      newAlert = {
+        id: nextId,
+        caso_id: parseInt(caso_id),
+        ubicacion_lat: parseFloat(ubicacion_lat),
+        ubicacion_lng: parseFloat(ubicacion_lng),
+        porcentaje_confianza: parseFloat(porcentaje_confianza),
+        foto_evidencia_url,
+        id_estado_alerta: parseInt(id_estado_alerta),
+        estado: 'pendiente',
+        tipo_origen: tipo_origen || 'Avistamiento Ciudadano',
+        ubicacion_nombre: ubicacion_nombre || 'Zona urbana',
+        comentarios: comentarios || 'Avistamiento reportado por la comunidad.',
+        created_at: new Date().toISOString()
+      };
     } else {
-      newAlert.estado = id_estado_or_estado;
-      newAlert.id_estado_alerta = id_estado_or_estado === 'pendiente' ? 1 : (id_estado_or_estado === 'confirmado' ? 2 : 3);
+      const [caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, video_url, foto_evidencia_url, id_estado_or_estado] = params;
+      const isNewSchema = normalizedText.includes('id_estado_alerta');
+      newAlert = {
+        id: nextId,
+        caso_id: parseInt(caso_id),
+        ubicacion_lat: parseFloat(ubicacion_lat),
+        ubicacion_lng: parseFloat(ubicacion_lng),
+        porcentaje_confianza: parseFloat(porcentaje_confianza),
+        video_url: video_url || null,
+        foto_evidencia_url: foto_evidencia_url || null,
+        fecha_deteccion: new Date().toISOString()
+      };
+      
+      if (isNewSchema) {
+        newAlert.id_estado_alerta = parseInt(id_estado_or_estado);
+        newAlert.estado = id_estado_or_estado === 1 ? 'pendiente' : (id_estado_or_estado === 2 ? 'confirmado' : 'falso positivo');
+      } else {
+        newAlert.estado = id_estado_or_estado;
+        newAlert.id_estado_alerta = id_estado_or_estado === 'pendiente' ? 1 : (id_estado_or_estado === 'confirmado' ? 2 : 3);
+      }
     }
     
     db.alertas.push(newAlert);
     writeMockDb(db);
     return { rows: [newAlert] };
+  }
+
+  // 12. SELECT * FROM camaras
+  if (normalizedText.includes('FROM camaras') && normalizedText.includes('SELECT')) {
+    return { rows: db.camaras || [] };
+  }
+
+  // 12.1 INSERT INTO camaras
+  if (normalizedText.includes('INSERT INTO camaras')) {
+    const [nombre, ubicacion, lat, lng, stream_url, tipo, resolucion, fps, estado] = params;
+    if (!db.camaras) db.camaras = [];
+    const nextId = db.camaras.length > 0 ? Math.max(...db.camaras.map(c => c.id)) + 1 : 1;
+    const newCam = {
+      id: nextId,
+      nombre,
+      ubicacion,
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      stream_url,
+      tipo,
+      resolucion,
+      fps: parseInt(fps),
+      estado: estado || 'activa',
+      ultima_actividad: new Date().toISOString()
+    };
+    db.camaras.push(newCam);
+    writeMockDb(db);
+    return { rows: [newCam] };
+  }
+
+  // 12.2 DELETE FROM camaras WHERE id = $1
+  if (normalizedText.includes('DELETE FROM camaras WHERE id = $1')) {
+    const [id] = params;
+    if (db.camaras) {
+      db.camaras = db.camaras.filter(c => c.id !== parseInt(id));
+      writeMockDb(db);
+    }
+    return { rows: [] };
   }
 
   // 12. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos
@@ -283,6 +377,7 @@ const mockQuery = (text, params = []) => {
   }
 
   if (normalizedText.includes("FROM alertas a JOIN casos c ON a.caso_id = c.id WHERE a.estado = 'pendiente'") || 
+      (normalizedText.includes('FROM alertas a') && normalizedText.includes('a.id_estado_alerta = 1')) ||
       (normalizedText.includes('FROM alertas a') && normalizedText.includes('JOIN estados_alerta ea') && normalizedText.includes("'pendiente'"))) {
     const list = db.alertas
       .filter(a => {
@@ -303,8 +398,9 @@ const mockQuery = (text, params = []) => {
     return { rows: list };
   }
 
-  // 12b. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos WHERE a.estado = 'confirmado'
-  if (normalizedText.includes("WHERE a.estado = 'confirmado'")) {
+  // 12b. SELECT a.*, c.nombre_desaparecido FROM alertas JOIN casos WHERE a.estado = 'confirmado' or a.id_estado_alerta = 2
+  if (normalizedText.includes("WHERE a.estado = 'confirmado'") || 
+      (normalizedText.includes('FROM alertas a') && normalizedText.includes('a.id_estado_alerta = 2'))) {
     const list = db.alertas
       .filter(a => {
         if (a.id_estado_alerta !== undefined) {

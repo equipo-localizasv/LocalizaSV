@@ -23,4 +23,22 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+const roleMiddleware = (allowedRoles = []) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Acceso no autenticado.' });
+    }
+    const userRole = (req.user.rol || 'ciudadano').toLowerCase();
+    const normalizedAllowed = allowedRoles.map(r => r.toLowerCase());
+    if (!normalizedAllowed.includes(userRole)) {
+      return res.status(403).json({
+        error: `Acceso restringido. Se requiere uno de los siguientes roles: ${allowedRoles.join(', ')}.`
+      });
+    }
+    next();
+  };
+};
+
 module.exports = authMiddleware;
+module.exports.authMiddleware = authMiddleware;
+module.exports.roleMiddleware = roleMiddleware;

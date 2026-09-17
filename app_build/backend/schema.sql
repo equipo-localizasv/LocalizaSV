@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     telefono VARCHAR(15) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     selfie_url VARCHAR(512) NOT NULL,
+    rol VARCHAR(50) DEFAULT 'ciudadano' NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

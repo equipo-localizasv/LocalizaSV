@@ -8,7 +8,7 @@ const DUI_REGEX = /^\d{8}-\d$/;
 const PHONE_REGEX = /^[2678]\d{3}-?\d{4}$/;
 
 const register = async (req, res) => {
-  const { nombre, dui, email, telefono, password } = req.body;
+  const { nombre, dui, email, telefono, password, rol: rolBody } = req.body;
 
   // Check file upload
   if (!req.file) {
@@ -30,6 +30,20 @@ const register = async (req, res) => {
     return res.status(400).json({ error: 'El formato del teléfono debe ser XXXX-XXXX salvadoreño válido.' });
   }
 
+  // Validate allowed roles (default to 'ciudadano')
+  const allowedRoles = ['ciudadano', 'moderador', 'autoridad'];
+  let rol = 'ciudadano';
+  if (rolBody) {
+    const normRole = rolBody.trim().toLowerCase();
+    if (allowedRoles.includes(normRole)) {
+      rol = normRole;
+    } else {
+      return res.status(400).json({
+        error: `Rol inválido. Los roles permitidos son: ${allowedRoles.join(', ')}.`
+      });
+    }
+  }
+
   try {
     // Check if user exists (DUI or Email)
     const userCheck = await db.query(
@@ -45,14 +59,17 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Insert user into DB
+    // Insert user into DB with role
     await db.query(
-      `INSERT INTO usuarios (nombre, dui, email, telefono, password_hash, selfie_url)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [nombre, dui, email, telefono, password_hash, selfie_url]
+      `INSERT INTO usuarios (nombre, dui, email, telefono, password_hash, selfie_url, rol)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [nombre, dui, email, telefono, password_hash, selfie_url, rol]
     );
 
-    return res.status(201).json({ message: 'Usuario registrado con éxito.' });
+    return res.status(201).json({ 
+      message: 'Usuario registrado con éxito.',
+      rol 
+    });
   } catch (error) {
     console.error('Error en registro:', error);
     return res.status(500).json({ error: 'Ocurrió un error al registrar el usuario en el servidor.' });
@@ -81,9 +98,11 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
 
-    // Sign JWT
+    const userRole = user.rol || 'ciudadano';
+
+    // Sign JWT with role in payload
     const token = jwt.sign(
-      { id: user.id, nombre: user.nombre, email: user.email },
+      { id: user.id, nombre: user.nombre, email: user.email, rol: userRole },
       process.env.JWT_SECRET || 'supersecretkey_localizasv_2026',
       { expiresIn: '24h' }
     );
@@ -96,7 +115,8 @@ const login = async (req, res) => {
         email: user.email,
         dui: user.dui,
         telefono: user.telefono,
-        selfie_url: user.selfie_url
+        selfie_url: user.selfie_url,
+        rol: userRole
       }
     });
   } catch (error) {
@@ -108,7 +128,7 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, nombre, dui, email, telefono, selfie_url, created_at FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, dui, email, telefono, selfie_url, rol, created_at FROM usuarios WHERE id = $1',
       [req.user.id]
     );
 
@@ -116,7 +136,12 @@ const getMe = async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado.' });
     }
 
-    return res.status(200).json(result.rows[0]);
+    const user = result.rows[0];
+
+    return res.status(200).json({
+      ...user,
+      rol: user.rol || req.user.rol || 'ciudadano'
+    });
   } catch (error) {
     console.error('Error en getMe:', error);
     return res.status(500).json({ error: 'Error al obtener los datos del usuario.' });

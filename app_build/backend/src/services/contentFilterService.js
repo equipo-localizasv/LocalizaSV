@@ -1,4 +1,9 @@
-const vision = require('@google-cloud/vision');
+let vision;
+try {
+  vision = require('@google-cloud/vision');
+} catch (e) {
+  console.warn('⚠️ [Vision] @google-cloud/vision no disponible. Filtro de imágenes deshabilitado en modo local.');
+}
 const path = require('path');
 
 // Simple profanity list for demonstration
@@ -32,6 +37,7 @@ const containsOffensiveWords = (text) => {
  * @returns {Promise<boolean>} true if offensive, false otherwise
  */
 const isImageOffensive = async (filePath) => {
+  if (!vision) return false;
   try {
     // Note: To use Google Cloud Vision, process.env.GOOGLE_APPLICATION_CREDENTIALS must be set
     // pointing to a valid service account JSON key.

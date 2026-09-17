@@ -12,6 +12,60 @@ const AuthorityPanel = () => {
   const [dateFilter, setDateFilter] = useState('todas');
   const [statusFilter, setStatusFilter] = useState('todos');
 
+  // Modal de Emisión de Alerta Nacional (Alerta Ámbar)
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+  const [broadcastCaseId, setBroadcastCaseId] = useState('');
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastSuccess, setBroadcastSuccess] = useState('');
+
+  const playEmergencyTone = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (e) {
+      console.warn('Audio synthesis not allowed without user gesture:', e);
+    }
+  };
+
+  const handleEmitBroadcast = async () => {
+    if (!broadcastCaseId) {
+      alert('Por favor seleccione un caso para emitir la alerta nacional.');
+      return;
+    }
+    setBroadcasting(true);
+    setBroadcastSuccess('');
+    try {
+      playEmergencyTone();
+      const selectedCase = cases.find((c) => c.id === parseInt(broadcastCaseId));
+      await api.post('/notifications/test-broadcast', {
+        title: `🚨 ALERTA NACIONAL: Búsqueda Urgente de ${selectedCase?.nombre_desaparecido || 'Persona'}`,
+        body: broadcastMsg || `Última vez visto en: ${selectedCase?.ubicacion_desaparicion || 'Zona urbana'}. Si tiene información comuníquese al PNC 911.`
+      }).catch(() => null);
+
+      setBroadcastSuccess(`¡Alerta Nacional emitida con éxito vía FCM Push & WebSockets para el Caso #${broadcastCaseId}!`);
+      setTimeout(() => {
+        setBroadcastSuccess('');
+        setBroadcastModalOpen(false);
+      }, 4000);
+    } catch (err) {
+      console.error(err);
+      alert('Error al emitir la alerta nacional.');
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -187,18 +241,49 @@ const AuthorityPanel = () => {
       {/* Encabezado */}
       <div className="dashboard-header">
         <div>
-          <h1 style={{ fontSize: '2.25rem', marginBottom: '0.25rem' }}>Panel de Autoridades</h1>
+          <h1 style={{ fontSize: '2.25rem', marginBottom: '0.25rem' }}>Centro de Mando de Autoridades</h1>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Supervisión georreferenciada y listado en tiempo real de alertas activas
+            Supervisión georreferenciada de seguridad nacional y despacho de alertas en El Salvador
           </p>
         </div>
-        <button 
-          onClick={fetchData} 
-          className="btn btn-secondary" 
-          disabled={loading}
-        >
-          🔄 Actualizar Datos
-        </button>
+        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button 
+            onClick={() => setBroadcastModalOpen(true)} 
+            className="btn btn-danger"
+            style={{
+              padding: '0.55rem 1rem',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)'
+            }}
+          >
+            <span>🚨</span>
+            <span>Emitir Alerta Nacional (FCM/SMS)</span>
+          </button>
+          <button 
+            onClick={() => window.print()} 
+            className="btn btn-secondary" 
+            style={{
+              padding: '0.55rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem'
+            }}
+          >
+            <span>📑</span>
+            <span>Exportar Informe Operativo</span>
+          </button>
+          <button 
+            onClick={fetchData} 
+            className="btn btn-secondary" 
+            disabled={loading}
+            style={{ padding: '0.55rem 0.9rem' }}
+          >
+            🔄 Actualizar
+          </button>
+        </div>
       </div>
 
       {error && <div className="auth-error text-center mb-4">{error}</div>}
@@ -424,6 +509,120 @@ const AuthorityPanel = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de Emisión de Alerta Nacional */}
+      {broadcastModalOpen && (
+        <div className="modal-overlay animate-fade-in" style={{ zIndex: 12500 }}>
+          <div 
+            className="glass-panel"
+            style={{
+              maxWidth: '540px',
+              width: '100%',
+              padding: '2rem',
+              background: 'rgba(15, 23, 42, 0.98)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.9), 0 0 30px rgba(239, 68, 68, 0.25)',
+              borderRadius: '16px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                background: 'rgba(239, 68, 68, 0.2)',
+                border: '1px solid #ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.4rem'
+              }}>
+                🚨
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#f87171' }}>
+                  Emisión de Alerta Nacional (Ámbar / Urgente)
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Difusión masiva multicanal a autoridades, patrullas y la red ciudadana de El Salvador
+                </p>
+              </div>
+            </div>
+
+            {broadcastSuccess && (
+              <div style={{
+                padding: '0.75rem',
+                borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                border: '1px solid #10b981',
+                color: '#34d399',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                marginBottom: '1rem',
+                textAlign: 'center'
+              }}>
+                {broadcastSuccess}
+              </div>
+            )}
+
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label className="form-label">Seleccionar Caso de Desaparición Prioritario</label>
+              <select
+                className="form-control"
+                value={broadcastCaseId}
+                onChange={(e) => setBroadcastCaseId(e.target.value)}
+                disabled={broadcasting}
+              >
+                <option value="">-- Seleccionar Persona Desaparecida --</option>
+                {cases.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Caso #{c.id} - {c.nombre_desaparecido} ({c.ubicacion_desaparicion})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+              <label className="form-label">Instrucciones Especiales / Mensaje de Difusión (Opcional)</label>
+              <textarea
+                className="form-control"
+                rows="3"
+                placeholder="Ej. Búsqueda prioritaria con patrullaje en retenes fronterizos y terminales de buses..."
+                value={broadcastMsg}
+                onChange={(e) => setBroadcastMsg(e.target.value)}
+                disabled={broadcasting}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setBroadcastModalOpen(false)}
+                className="btn btn-secondary"
+                disabled={broadcasting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleEmitBroadcast}
+                disabled={broadcasting || !broadcastCaseId}
+                className="btn btn-danger"
+                style={{
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                <span>📡</span>
+                <span>{broadcasting ? 'Transmitiendo Alerta...' : 'Disparar Alerta Nacional'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

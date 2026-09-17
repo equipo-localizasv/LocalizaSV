@@ -9,19 +9,35 @@ const createDetection = async (req, res) => {
     porcentaje_confianza,
     video_url,
     foto_evidencia_url
-  } = req.body;
+  } = req.body || {};
 
-  // 1. Validate that all required fields are present
+  // 1. Validate required fields (caso_id, ubicacion_lat, ubicacion_lng)
   if (
     caso_id === undefined ||
     ubicacion_lat === undefined ||
-    ubicacion_lng === undefined ||
-    porcentaje_confianza === undefined
+    ubicacion_lng === undefined
   ) {
     return res.status(400).json({
-      error: 'Faltan campos obligatorios. Los campos caso_id, ubicacion_lat, ubicacion_lng y porcentaje_confianza son requeridos.'
+      error: 'Faltan campos obligatorios. Los campos caso_id, ubicacion_lat y ubicacion_lng son requeridos.'
     });
   }
+
+  // Handle uploaded file if present
+  let finalFotoEvidenciaUrl = foto_evidencia_url || null;
+  if (req.files) {
+    const uploadedFile = (req.files['imagen'] && req.files['imagen'][0]) || 
+                         (req.files['foto'] && req.files['foto'][0]);
+    if (uploadedFile) {
+      finalFotoEvidenciaUrl = `/uploads/${uploadedFile.filename}`;
+    }
+  } else if (req.file) {
+    finalFotoEvidenciaUrl = `/uploads/${req.file.filename}`;
+  }
+
+  // Confidence defaults to 80.0 if omitted or invalid
+  const finalConfianza = (porcentaje_confianza !== undefined && porcentaje_confianza !== '')
+    ? parseFloat(porcentaje_confianza)
+    : 80.0;
 
   try {
     // 2. Verify that the caso_id exists in the Casos table
@@ -59,9 +75,9 @@ const createDetection = async (req, res) => {
         parseInt(caso_id),
         parseFloat(ubicacion_lat),
         parseFloat(ubicacion_lng),
-        parseFloat(porcentaje_confianza),
+        finalConfianza,
         video_url || null,
-        foto_evidencia_url || null,
+        finalFotoEvidenciaUrl,
         id_estado_alerta
       ]
     );

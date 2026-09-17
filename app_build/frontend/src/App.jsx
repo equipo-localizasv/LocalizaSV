@@ -15,6 +15,48 @@ import Profile from './pages/Profile';
 
 export const AuthContext = createContext(null);
 
+// Componente guard para controlar acceso por rol
+const RoleRoute = ({ user, allowedRoles, children }) => {
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const role = user.rol || 'ciudadano';
+  if (allowedRoles && !allowedRoles.includes(role)) {
+    if (role === 'moderador') return <Navigate to="/moderacion" replace />;
+    if (role === 'autoridad') return <Navigate to="/autoridades" replace />;
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+// Redirección en la raíz según rol
+const HomeRoute = ({ user }) => {
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  const role = user.rol || 'ciudadano';
+  if (role === 'moderador') {
+    return <Navigate to="/moderacion" replace />;
+  }
+  if (role === 'autoridad') {
+    return <Navigate to="/autoridades" replace />;
+  }
+  return <Dashboard />;
+};
+
+// Redirección para Login/Register si ya tiene sesión
+const AuthRedirect = ({ user, children }) => {
+  if (user) {
+    const role = user.rol || 'ciudadano';
+    if (role === 'moderador') return <Navigate to="/moderacion" replace />;
+    if (role === 'autoridad') return <Navigate to="/autoridades" replace />;
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -106,39 +148,71 @@ const App = () => {
           <Navbar />
           <div className="content-wrap">
             <Routes>
-              <Route 
-                path="/" 
-                element={user ? <Dashboard /> : <Navigate to="/login" replace />} 
-              />
+              {/* Ruta Principal: Redirige automáticamente al interfaz del rol */}
+              <Route path="/" element={<HomeRoute user={user} />} />
+
+              {/* Login y Register redirigen al panel si ya está autenticado */}
               <Route 
                 path="/login" 
-                element={!user ? <Login /> : <Navigate to="/" replace />} 
+                element={<AuthRedirect user={user}><Login /></AuthRedirect>} 
               />
               <Route 
                 path="/register" 
-                element={!user ? <Register /> : <Navigate to="/" replace />} 
+                element={<AuthRedirect user={user}><Register /></AuthRedirect>} 
               />
+
+              {/* Exclusivo para Ciudadanos */}
               <Route 
                 path="/reportar" 
-                element={user ? <CreateCase /> : <Navigate to="/login" replace />} 
+                element={
+                  <RoleRoute user={user} allowedRoles={['ciudadano']}>
+                    <CreateCase />
+                  </RoleRoute>
+                } 
               />
+
+              {/* Detalle de Caso */}
               <Route 
                 path="/caso/:id" 
-                element={user ? <CaseDetail /> : <Navigate to="/login" replace />} 
+                element={
+                  <RoleRoute user={user} allowedRoles={['ciudadano', 'moderador', 'autoridad']}>
+                    <CaseDetail />
+                  </RoleRoute>
+                } 
               />
+
+              {/* Exclusivo para Moderadores */}
               <Route 
                 path="/moderacion" 
-                element={user ? <ModeratorPanel /> : <Navigate to="/login" replace />} 
+                element={
+                  <RoleRoute user={user} allowedRoles={['moderador']}>
+                    <ModeratorPanel />
+                  </RoleRoute>
+                } 
               />
+
+              {/* Exclusivo para Autoridades */}
               <Route 
                 path="/autoridades" 
-                element={user ? <AuthorityPanel /> : <Navigate to="/login" replace />} 
+                element={
+                  <RoleRoute user={user} allowedRoles={['autoridad']}>
+                    <AuthorityPanel />
+                  </RoleRoute>
+                } 
               />
+
+              {/* Mi Perfil */}
               <Route 
                 path="/perfil" 
-                element={user ? <Profile /> : <Navigate to="/login" replace />} 
+                element={
+                  <RoleRoute user={user} allowedRoles={['ciudadano', 'moderador', 'autoridad']}>
+                    <Profile />
+                  </RoleRoute>
+                } 
               />
-              <Route path="*" element={<Navigate to="/" replace />} />
+
+              {/* Redirección comodín según rol */}
+              <Route path="*" element={<HomeRoute user={user} />} />
             </Routes>
 
           </div>

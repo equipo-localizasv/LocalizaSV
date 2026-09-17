@@ -848,3 +848,98 @@ textarea.form-control {
   box-shadow: 0 0 10px currentColor;
 }
 
+/* Role Badges */
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.role-chip-moderador {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+}
+
+.role-chip-autoridad {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.role-chip-ciudadano {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+/* Print Styles for Printable Flyer and Briefing Reports */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .navbar, .modal-overlay > div > div:first-child, .modal-overlay > div > div:nth-child(2), .btn, button, footer {
+    display: none !important;
+  }
+  .modal-overlay {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+  .modal-overlay > div {
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+  }
+  #printable-flyer {
+    border: 3px solid #dc2626 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 1.5rem !important;
+  }
+}
+
+/* Tactical Radar Animation */
+@keyframes radarSweep {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-sweep-effect {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: conic-gradient(from 0deg at 50% 50%, rgba(14, 165, 233, 0.18) 0deg, transparent 60deg, transparent 360deg);
+  animation: radarSweep 4s linear infinite;
+  border-radius: inherit;
+}
+
+/* Floating Lift Hover Effect */
+.card-interactive-lift {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.card-interactive-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.7), 0 0 20px rgba(14, 165, 233, 0.25);
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+

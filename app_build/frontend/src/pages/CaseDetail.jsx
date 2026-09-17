@@ -2,6 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 import { AuthContext } from '../App';
+import ReportSightingModal from '../components/ReportSightingModal';
+import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
 
 const CaseDetail = () => {
   const { id } = useParams();
@@ -12,6 +14,9 @@ const CaseDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [sightingModalOpen, setSightingModalOpen] = useState(false);
+  const [flyerModalOpen, setFlyerModalOpen] = useState(false);
+
 
   const fetchCaseDetail = async () => {
     setLoading(true);
@@ -43,6 +48,22 @@ const CaseDetail = () => {
     } catch (err) {
       console.error('Error updating status:', err);
       setError(err.response?.data?.error || 'No se pudo actualizar el estado del caso.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleAcceptSearch = async () => {
+    if (!user) return;
+    setUpdating(true);
+    setError('');
+    try {
+      const response = await api.put(`/cases/${id}/aceptar`);
+      setCaso((prev) => ({ ...prev, ...response.data.caso }));
+      window.alert('¡Te has unido oficialmente al operativo de rescate de este caso!');
+    } catch (err) {
+      console.error('Error al aceptar búsqueda:', err);
+      setError(err.response?.data?.error || 'No se pudo aceptar la búsqueda.');
     } finally {
       setUpdating(false);
     }
@@ -94,6 +115,36 @@ const CaseDetail = () => {
 
       {error && <div className="auth-error mb-4">{error}</div>}
 
+      {/* Banner de Rescate en Detalle de Caso */}
+      {caso && caso.estado === 'En Proceso de Rescate' && (
+        <div
+          className="glass-panel animate-fade-in"
+          style={{
+            background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.2), rgba(245, 158, 11, 0.2))',
+            border: '1px solid #f59e0b',
+            borderRadius: '12px',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem'
+          }}
+        >
+          <span style={{ fontSize: '2.5rem' }}>🚨</span>
+          <div>
+            <h3 style={{ margin: 0, color: '#fbbf24', fontSize: '1.2rem' }}>
+              OPERATIVO DE RESCATE EN PROCESO
+            </h3>
+            <p style={{ margin: '0.35rem 0 0 0', color: '#f1f5f9', fontSize: '0.95rem' }}>
+              Este caso cuenta con búsqueda solidaria activa en curso.{' '}
+              {caso.rescatista_nombre && (
+                <strong>Voluntario líder: {caso.rescatista_nombre}</strong>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       {caso && (
         <div className="glass-panel case-detail-grid" style={{ padding: '2rem' }}>
           <div>
@@ -106,15 +157,120 @@ const CaseDetail = () => {
                   e.target.src = 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80';
                 }}
               />
-              <span className={`status-badge ${caso.estado.toLowerCase()}`} style={{ top: '1.5rem', right: '1.5rem', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
+              <span className={`status-badge ${caso.estado === 'En Proceso de Rescate' ? 'warning' : caso.estado.toLowerCase()}`} style={{ top: '1.5rem', right: '1.5rem', fontSize: '0.85rem', padding: '0.5rem 1rem' }}>
                 {caso.estado}
               </span>
+            </div>
+
+            {/* Acción Comunitaria: Botón Ayudar en la Búsqueda */}
+            {caso.estado === 'Desaparecido' && (
+              <div className="glass-panel" style={{ marginTop: '1.5rem', padding: '1.25rem', textAlign: 'center', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: '#f59e0b', fontSize: '1.05rem' }}>
+                  🤝 Colaboración Solidaria
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                  ¿Estás cerca del área o puedes participar en la búsqueda de {caso.nombre_desaparecido}?
+                </p>
+                {user ? (
+                  <button
+                    onClick={handleAcceptSearch}
+                    disabled={updating}
+                    className="btn btn-warning w-100"
+                    style={{
+                      padding: '0.75rem',
+                      fontWeight: '700',
+                      fontSize: '0.95rem',
+                      background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {updating ? 'Procesando...' : '🤝 Aceptar y Ayudar en la Búsqueda'}
+                  </button>
+                ) : (
+                  <Link to="/login" className="btn btn-secondary w-100">
+                    Inicia sesión para ayudar
+                  </Link>
+                )}
+
+                <div style={{ marginTop: '0.75rem' }}>
+                  <button
+                    onClick={() => setSightingModalOpen(true)}
+                    className="btn w-100"
+                    style={{
+                      padding: '0.75rem',
+                      fontWeight: '700',
+                      fontSize: '0.95rem',
+                      background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                      color: '#fff',
+                      border: '1px solid rgba(56, 189, 248, 0.4)',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
+                    }}
+                  >
+                    📸 Subir Foto de Evidencia / Avistamiento
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Herramientas de Difusión Solidaria */}
+            <div className="glass-panel" style={{ marginTop: '1.25rem', padding: '1rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '700', marginBottom: '0.75rem' }}>
+                Difusión Comunitaria
+              </div>
+              <button
+                onClick={() => setFlyerModalOpen(true)}
+                className="btn btn-danger w-100"
+                style={{
+                  marginBottom: '0.5rem',
+                  padding: '0.65rem',
+                  fontSize: '0.9rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                <span>📄</span>
+                <span>Generar Boletín "Se Busca"</span>
+              </button>
+              <button
+                onClick={() => {
+                  const text = `🚨 *ALERTA LOCALIZASV*: Ayúdanos a encontrar a *${caso.nombre_desaparecido}* (${caso.edad} años). Visto en: ${caso.ubicacion_desaparicion}. Teléfono de emergencia: ${caso.telefono_contacto} o PNC 911.\n\nVer caso completo: ${window.location.href}`;
+                  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                className="btn w-100"
+                style={{
+                  background: 'rgba(37, 211, 102, 0.15)',
+                  border: '1px solid rgba(37, 211, 102, 0.4)',
+                  color: '#4ade80',
+                  padding: '0.55rem',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem'
+                }}
+              >
+                <span>💬</span>
+                <span>Compartir por WhatsApp</span>
+              </button>
             </div>
 
             {isOwner && (
               <div className="glass-panel" style={{ marginTop: '1.5rem', padding: '1.25rem', textAlign: 'center', background: 'rgba(255, 255, 255, 0.01)' }}>
                 <h4 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Gestión de Propietario</h4>
-                {caso.estado === 'Desaparecido' ? (
+                {caso.estado !== 'Encontrado' ? (
                   <button 
                     onClick={() => handleStatusChange('Encontrado')} 
                     className="btn btn-success w-100"
@@ -200,6 +356,21 @@ const CaseDetail = () => {
           </div>
         </div>
       )}
+
+      <ReportSightingModal
+        isOpen={sightingModalOpen}
+        onClose={() => setSightingModalOpen(false)}
+        initialCaseId={id}
+        onSuccess={() => {
+          fetchCaseDetail();
+        }}
+      />
+
+      <MissingPersonFlyerModal
+        isOpen={flyerModalOpen}
+        caso={caso}
+        onClose={() => setFlyerModalOpen(false)}
+      />
     </div>
   );
 };
