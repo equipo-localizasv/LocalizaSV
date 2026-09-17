@@ -114,12 +114,13 @@ const mockQuery = (text, params = []) => {
   if (normalizedText.includes('INSERT INTO casos')) {
     const [
       usuario_id, nombre_desaparecido, edad, genero, fecha_desaparicion,
-      ubicacion_desaparicion, descripcion, telefono_contacto, foto_url
+      ubicacion_desaparicion, descripcion, telefono_contacto, foto_url,
+      biometria_insightface
     ] = params;
     const nextId = db.casos.length > 0 ? Math.max(...db.casos.map(c => c.id)) + 1 : 1;
     const newCase = {
       id: nextId,
-      usuario_id,
+      usuario_id: parseInt(usuario_id),
       nombre_desaparecido,
       edad: parseInt(edad),
       genero,
@@ -128,6 +129,7 @@ const mockQuery = (text, params = []) => {
       descripcion,
       telefono_contacto,
       foto_url,
+      biometria_insightface: biometria_insightface || null,
       estado: 'Desaparecido',
       created_at: new Date().toISOString()
     };
@@ -247,6 +249,11 @@ const mockQuery = (text, params = []) => {
     return { rows: found };
   }
 
+  // 10.1 SELECT * FROM casos (General)
+  if (normalizedText.startsWith('SELECT') && normalizedText.includes('FROM casos') && !normalizedText.includes('JOIN')) {
+    return { rows: db.casos || [] };
+  }
+
   // 10.5 SELECT id, caso_id FROM alertas WHERE id = $1
   if (normalizedText.includes('FROM alertas WHERE id = $1')) {
     const [id] = params;
@@ -317,26 +324,70 @@ const mockQuery = (text, params = []) => {
     return { rows: [newAlert] };
   }
 
-  // 12. SELECT * FROM camaras
-  if (normalizedText.includes('FROM camaras') && normalizedText.includes('SELECT')) {
+  // 12. SELECT FROM camaras
+  if (normalizedText.startsWith('SELECT') && normalizedText.includes('FROM camaras WHERE id = $1')) {
+    const [id] = params;
+    const cam = (db.camaras || []).find(c => c.id === parseInt(id));
+    return { rows: cam ? [cam] : [] };
+  }
+
+  if (normalizedText.startsWith('SELECT') && normalizedText.includes('FROM camaras')) {
     return { rows: db.camaras || [] };
   }
 
-  // 12.1 INSERT INTO camaras
+  // 12.1 INSERT INTO camaras (Con prevención estricta de duplicados)
   if (normalizedText.includes('INSERT INTO camaras')) {
-    const [nombre, ubicacion, lat, lng, stream_url, tipo, resolucion, fps, estado] = params;
+    const [nombre, ubicacion, lat, lng, stream_url, tipo, resolucion, fps, estado, ip_address, snapshot_url, base_url] = params;
     if (!db.camaras) db.camaras = [];
+    const cleanIp = (ip_address || (stream_url ? stream_url.replace(/http:\/\//, '').replace(/\/video.*/, '') : '')).trim();
+    const cleanBase = (base_url || (cleanIp ? (cleanIp.startsWith('http') ? cleanIp : `http://${cleanIp}`) : '')).trim();
+
+    // Comprobar si ya existe una cámara registrada con esa misma IP, Base URL o Stream
+    const existingIdx = db.camaras.findIndex(c => 
+      (cleanIp && c.ip_address === cleanIp) ||
+      (cleanBase && c.base_url === cleanBase) ||
+      (stream_url && c.stream_url === stream_url) ||
+      (c.nombre && c.nombre.trim().toLowerCase() === (nombre || '').trim().toLowerCase())
+    );
+
+    if (existingIdx !== -1) {
+      // Actualizar cámara existente para no duplicar registros
+      db.camaras[existingIdx] = {
+        ...db.camaras[existingIdx],
+        nombre: nombre || db.camaras[existingIdx].nombre,
+        ubicacion: ubicacion || db.camaras[existingIdx].ubicacion,
+        lat: lat ? parseFloat(lat) : db.camaras[existingIdx].lat,
+        lng: lng ? parseFloat(lng) : db.camaras[existingIdx].lng,
+        ip_address: cleanIp || db.camaras[existingIdx].ip_address,
+        base_url: cleanBase || db.camaras[existingIdx].base_url,
+        stream_url: stream_url || db.camaras[existingIdx].stream_url,
+        snapshot_url: snapshot_url || db.camaras[existingIdx].snapshot_url,
+        tipo: tipo || db.camaras[existingIdx].tipo,
+        resolucion: resolucion || db.camaras[existingIdx].resolucion,
+        fps: fps ? parseInt(fps) : db.camaras[existingIdx].fps,
+        estado: 'activa',
+        ultima_actividad: new Date().toISOString()
+      };
+      writeMockDb(db);
+      return { rows: [db.camaras[existingIdx]] };
+    }
+
     const nextId = db.camaras.length > 0 ? Math.max(...db.camaras.map(c => c.id)) + 1 : 1;
     const newCam = {
       id: nextId,
       nombre,
       ubicacion,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      stream_url,
-      tipo,
-      resolucion,
-      fps: parseInt(fps),
+      lat: parseFloat(lat) || 13.6929,
+      lng: parseFloat(lng) || -89.2182,
+      ip_address: cleanIp,
+      base_url: cleanBase,
+      stream_url: stream_url || `${cleanBase}/video`,
+      snapshot_url: snapshot_url || `${cleanBase}/shot.jpg`,
+      tipo: tipo || 'IP Webcam Móvil',
+      resolucion: resolucion || '1080p FHD',
+      fps: parseInt(fps) || 30,
+      linterna: false,
+      zoom: 0,
       estado: estado || 'activa',
       ultima_actividad: new Date().toISOString()
     };
@@ -345,11 +396,49 @@ const mockQuery = (text, params = []) => {
     return { rows: [newCam] };
   }
 
-  // 12.2 DELETE FROM camaras WHERE id = $1
-  if (normalizedText.includes('DELETE FROM camaras WHERE id = $1')) {
+  // 12.15 UPDATE camaras
+  if (normalizedText.includes('UPDATE camaras SET')) {
+    if (normalizedText.includes('linterna =') || normalizedText.includes('zoom =')) {
+      const [fieldVal, id] = params;
+      const idx = (db.camaras || []).findIndex(c => c.id === parseInt(id));
+      if (idx !== -1) {
+        if (normalizedText.includes('linterna =')) {
+          db.camaras[idx].linterna = Boolean(fieldVal);
+        }
+        if (normalizedText.includes('zoom =')) {
+          db.camaras[idx].zoom = parseInt(fieldVal);
+        }
+        db.camaras[idx].ultima_actividad = new Date().toISOString();
+        writeMockDb(db);
+        return { rows: [db.camaras[idx]] };
+      }
+    } else {
+      // General update
+      const id = params[params.length - 1];
+      const idx = (db.camaras || []).findIndex(c => c.id === parseInt(id));
+      if (idx !== -1) {
+        if (params.length >= 6) {
+          db.camaras[idx].nombre = params[0];
+          db.camaras[idx].ubicacion = params[1];
+          db.camaras[idx].lat = parseFloat(params[2]) || db.camaras[idx].lat;
+          db.camaras[idx].lng = parseFloat(params[3]) || db.camaras[idx].lng;
+          db.camaras[idx].stream_url = params[4];
+          db.camaras[idx].snapshot_url = params[5];
+        }
+        db.camaras[idx].estado = 'activa';
+        db.camaras[idx].ultima_actividad = new Date().toISOString();
+        writeMockDb(db);
+        return { rows: [db.camaras[idx]] };
+      }
+    }
+    return { rows: [] };
+  }
+
+  // 12.2 DELETE FROM camaras
+  if (normalizedText.includes('DELETE FROM camaras')) {
     const [id] = params;
     if (db.camaras) {
-      db.camaras = db.camaras.filter(c => c.id !== parseInt(id));
+      db.camaras = db.camaras.filter(c => parseInt(c.id) !== parseInt(id));
       writeMockDb(db);
     }
     return { rows: [] };

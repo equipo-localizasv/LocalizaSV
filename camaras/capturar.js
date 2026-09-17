@@ -14,16 +14,21 @@ const http = require('http');
 const https = require('https');
 
 // ================= CONFIGURACIÓN DEL SISTEMA =================
+const rawArg = process.argv[2] || process.env.CAMERA_IP || process.env.CAMERA_URL || 'http://192.168.1.50:8080';
+let normalizedSnapshotUrl = rawArg;
+if (!normalizedSnapshotUrl.startsWith('http://') && !normalizedSnapshotUrl.startsWith('https://')) {
+  normalizedSnapshotUrl = `http://${normalizedSnapshotUrl}`;
+}
+if (!normalizedSnapshotUrl.includes('/shot.jpg') && !normalizedSnapshotUrl.includes('/frame.jpg')) {
+  normalizedSnapshotUrl = normalizedSnapshotUrl.replace(/\/$/, '') + '/shot.jpg';
+}
+
 const CONFIG = {
   // URL del endpoint de detecciones de LocalizaSV
   API_URL: process.env.API_URL || 'http://localhost:3001/api/detecciones',
   
-  // URL del snapshot de la cámara IP (ejemplo con IP Webcam de Android o cámara local)
-  // Ejemplos comunes:
-  // - IP Webcam Android: http://192.168.1.50:8080/shot.jpg
-  // - DroidCam: http://192.168.1.50:4747/cam/1/frame.jpg
-  // - Modo Simulación (si no hay cámara física en la red): MOCK
-  CAMERA_SNAPSHOT_URL: process.env.CAMERA_URL || 'MOCK',
+  // URL del snapshot de la cámara IP (ejemplo con IP Webcam de Android)
+  CAMERA_SNAPSHOT_URL: normalizedSnapshotUrl,
 
   // ID del caso al que se le asocia la vigilancia activa (Caso #1 por defecto)
   CASO_ID: process.env.CASO_ID || 1,
@@ -43,52 +48,40 @@ const CONFIG = {
 };
 
 console.log('====================================================');
-console.log('🎥 LOCALIZASV - AGENTE DE CAPTURA DE CÁMARAS IP');
+console.log('🎥 LOCALIZASV - AGENTE DE CAPTURA IP WEBCAM');
 console.log('====================================================');
 console.log(`Endpoint destino : ${CONFIG.API_URL}`);
 console.log(`Caso asignado    : Caso #${CONFIG.CASO_ID}`);
 console.log(`Ubicación GPS    : [${CONFIG.UBICACION_LAT}, ${CONFIG.UBICACION_LNG}]`);
 console.log(`Frecuencia       : Cada ${CONFIG.INTERVAL_MS / 1000}s`);
-console.log(`Fuente cámara    : ${CONFIG.CAMERA_SNAPSHOT_URL}`);
+console.log(`IP Cámara Webcam : ${CONFIG.CAMERA_SNAPSHOT_URL}`);
+console.log('Tip de uso       : node capturar.js <IP_DE_TU_TELEFONO:8080>');
 console.log('====================================================\n');
 
 let previousFrameBuffer = null;
 let captureCount = 0;
 
 /**
- * Genera un buffer de imagen sintético para pruebas si no hay cámara IP física configurada.
- */
-const generateMockFrame = () => {
-  // Crear un PNG mínimo de 1x1 con variación de bytes simulada
-  // Un PNG básico de 68 bytes
-  const basePng = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-    'base64'
-  );
-  // Modificar ligeramente para simular cambio de luz/movimiento
-  const copy = Buffer.from(basePng);
-  copy[copy.length - 1] = (copy[copy.length - 1] + captureCount) % 255;
-  return copy;
-};
-
-/**
- * Descarga una imagen desde una URL HTTP/HTTPS.
+ * Descarga una imagen real desde la cámara IP Webcam HTTP/HTTPS.
  */
 const downloadSnapshot = (url) => {
   return new Promise((resolve, reject) => {
-    if (url === 'MOCK') {
-      return resolve(generateMockFrame());
-    }
-
     const client = url.startsWith('https') ? https : http;
-    client.get(url, (res) => {
+    const req = client.get(url, { timeout: 4000 }, (res) => {
       if (res.statusCode !== 200) {
         return reject(new Error(`Cámara respondió con código HTTP ${res.statusCode}`));
       }
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => resolve(Buffer.concat(chunks)));
-    }).on('error', (err) => reject(err));
+    });
+    
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error(`Tiempo de espera agotado al conectar con ${url}. Verifica que la app IP Webcam esté encendida.`));
+    });
+    
+    req.on('error', (err) => reject(err));
   });
 };
 

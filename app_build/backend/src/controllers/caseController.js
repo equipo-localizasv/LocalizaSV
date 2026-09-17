@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const insightFaceService = require('../services/insightFaceService');
 
 const createCase = async (req, res) => {
   const {
@@ -30,11 +31,19 @@ const createCase = async (req, res) => {
   }
 
   try {
+    // Análisis y extracción biométrica InsightFace (512-D ArcFace + RetinaFace landmarks)
+    let biometria = null;
+    try {
+      biometria = await insightFaceService.scanFace(foto_url);
+    } catch (bioErr) {
+      console.warn('[InsightFace] No se pudo completar el escaneo automático:', bioErr.message);
+    }
+
     const result = await db.query(
       `INSERT INTO casos (
         usuario_id, nombre_desaparecido, edad, genero, fecha_desaparicion,
-        ubicacion_desaparicion, descripcion, telefono_contacto, foto_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ubicacion_desaparicion, descripcion, telefono_contacto, foto_url, biometria_insightface
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
         req.user.id,
@@ -45,13 +54,15 @@ const createCase = async (req, res) => {
         ubicacion_desaparicion,
         descripcion,
         telefono_contacto,
-        foto_url
+        foto_url,
+        biometria ? biometria : null
       ]
     );
 
     return res.status(201).json({
       message: 'Caso de desaparición registrado con éxito.',
-      caso: result.rows[0]
+      caso: result.rows[0],
+      biometria: biometria || null
     });
   } catch (error) {
     console.error('Error al crear caso:', error);

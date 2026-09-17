@@ -14,6 +14,7 @@ const alertRoutes = require('./routes/alertRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const cameraRoutes = require('./routes/cameraRoutes');
 const sightingRoutes = require('./routes/sightingRoutes');
+const biometriaRoutes = require('./routes/biometriaRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -43,6 +44,7 @@ app.use('/api/alertas', alertRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/camaras', cameraRoutes);
 app.use('/api/avistamientos', sightingRoutes);
+app.use('/api/biometria', biometriaRoutes);
 
 
 
