@@ -211,7 +211,9 @@ const controlCamera = async (req, res) => {
 };
 
 /**
- * Proxy directo de snapshot en vivo para evitar problemas de CORS y Mixed-Content
+ * Proxy directo de snapshot en vivo con escudo anti-caídas
+ * Si la cámara física está suspendida o apagada, devuelve una imagen táctica de estado
+ * en lugar de lanzar errores 504 o romper la interfaz.
  * GET /api/camaras/:id/snapshot
  */
 const proxySnapshot = async (req, res) => {
@@ -226,25 +228,202 @@ const proxySnapshot = async (req, res) => {
     const snapshotUrl = cam.snapshot_url || (cam.base_url ? `${cam.base_url}/shot.jpg` : null);
 
     if (!snapshotUrl) {
-      return res.status(400).send('La cámara no tiene URL de snapshot.');
+      return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address || 'Sin IP');
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
+    const timeout = setTimeout(() => controller.abort(), 2200);
 
-    const camResponse = await fetch(snapshotUrl, { signal: controller.signal });
-    clearTimeout(timeout);
+    try {
+      const camResponse = await fetch(snapshotUrl, { signal: controller.signal });
+      clearTimeout(timeout);
 
-    if (!camResponse.ok) {
-      return res.status(502).send('No se pudo obtener el fotograma de la cámara IP.');
+      if (!camResponse.ok) {
+        return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+      }
+
+      res.set('Content-Type', 'image/jpeg');
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      const buffer = await camResponse.arrayBuffer();
+      return res.send(Buffer.from(buffer));
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+    }
+  } catch (err) {
+    return sendOfflinePlaceholder(res, 'Cámara', '192.168.1.X');
+  }
+};
+
+/**
+ * Genera un marco táctico SVG para cámaras fuera de línea
+ */
+const sendOfflinePlaceholder = (res, nombre, ip) => {
+  res.set('Content-Type', 'image/svg+xml');
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+      <rect width="640" height="360" fill="#090d16"/>
+      <rect x="15" y="15" width="610" height="330" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+      <circle cx="320" cy="130" r="38" fill="none" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 3"/>
+      <text x="320" y="142" font-size="30" font-family="sans-serif" fill="#f43f5e" text-anchor="middle">✕</text>
+      <text x="320" y="200" font-size="16" font-family="sans-serif" font-weight="bold" fill="#f8fafc" text-anchor="middle">CÁMARA FUERA DE LÍNEA</text>
+      <text x="320" y="225" font-size="13" font-family="monospace" font-weight="bold" fill="#38bdf8" text-anchor="middle">IP: ${ip || 'No configurada'}</text>
+      <text x="320" y="255" font-size="11" font-family="sans-serif" fill="#94a3b8" text-anchor="middle">Verifique que la app IP Webcam esté abierta y transmitiendo en su teléfono</text>
+      <text x="320" y="278" font-size="10" font-family="sans-serif" fill="#64748b" text-anchor="middle">(Pulse "Probar Ping" o "Cambiar IP" si el router asignó una nueva dirección)</text>
+    </svg>
+  `;
+  return res.status(200).send(svg.trim());
+};
+
+/**
+ * Probar conectividad con la cámara IP en tiempo real (Ping)
+ * GET /api/camaras/:id/ping
+ */
+const pingCamera = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const camRes = await db.query('SELECT * FROM camaras WHERE id = $1', [id]);
+    if (!camRes.rows || camRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Cámara no encontrada.' });
     }
 
-    res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-    const buffer = await camResponse.arrayBuffer();
-    return res.send(Buffer.from(buffer));
+    const cam = camRes.rows[0];
+    const baseUrl = cam.base_url || (cam.ip_address ? `http://${cam.ip_address}` : null);
+
+    if (!baseUrl) {
+      return res.status(400).json({ online: false, error: 'No tiene IP configurada.' });
+    }
+
+    const startTime = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+
+    try {
+      const response = await fetch(`${baseUrl}/status.json`, { signal: controller.signal });
+      clearTimeout(timeout);
+      const latencyMs = Date.now() - startTime;
+
+      if (response.ok) {
+        const telemetry = await response.json().catch(() => ({}));
+        return res.status(200).json({
+          online: true,
+          latencyMs,
+          ip: cam.ip_address,
+          telemetry,
+          message: `✓ Conexión exitosa con la cámara (${latencyMs}ms).`
+        });
+      } else {
+        return res.status(200).json({
+          online: false,
+          ip: cam.ip_address,
+          message: `Cámara respondió con código HTTP ${response.status}.`
+        });
+      }
+    } catch (err) {
+      clearTimeout(timeout);
+      return res.status(200).json({
+        online: false,
+        ip: cam.ip_address,
+        message: `No se pudo conectar con ${cam.ip_address}. Verifique que el teléfono esté encendido y en la misma red Wi-Fi.`
+      });
+    }
   } catch (err) {
-    return res.status(504).send('Tiempo de espera agotado al conectar con la cámara IP.');
+    return res.status(500).json({ error: 'Error interno en prueba de ping.' });
+  }
+};
+
+/**
+ * Actualizar datos de una cámara (ej. nueva dirección IP asignada por el router)
+ * PUT /api/camaras/:id
+ */
+const updateCamera = async (req, res) => {
+  const { id } = req.params;
+  const { nombre, ip_address, ubicacion, lat, lng } = req.body;
+
+  try {
+    const camRes = await db.query('SELECT * FROM camaras WHERE id = $1', [id]);
+    if (!camRes.rows || camRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Cámara no encontrada.' });
+    }
+
+    const { ip, baseUrl, streamUrl, snapshotUrl } = normalizeIpWebcam(ip_address || camRes.rows[0].ip_address);
+
+    const updateRes = await db.query(
+      `UPDATE camaras SET nombre = $1, ubicacion = $2, lat = $3, lng = $4, stream_url = $5, snapshot_url = $6, base_url = $7, ip_address = $8 WHERE id = $9 RETURNING *`,
+      [
+        nombre || camRes.rows[0].nombre,
+        ubicacion || camRes.rows[0].ubicacion,
+        lat ? parseFloat(lat) : camRes.rows[0].lat,
+        lng ? parseFloat(lng) : camRes.rows[0].lng,
+        streamUrl,
+        snapshotUrl,
+        baseUrl,
+        ip,
+        id
+      ]
+    );
+
+    return res.status(200).json({
+      message: 'Cámara actualizada con éxito.',
+      camara: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error('Error al actualizar cámara:', err);
+    return res.status(500).json({ error: 'Error al actualizar la cámara.' });
+  }
+};
+
+/**
+ * Activar / Desactivar Vigilancia Autónoma con IA InsightFace
+ * POST /api/camaras/:id/autovigilancia
+ */
+const toggleSurveillance = async (req, res) => {
+  const { id } = req.params;
+  const { enabled } = req.body;
+
+  try {
+    const surveillanceService = require('../services/surveillanceService');
+    const result = surveillanceService.setCameraSurveillance(id, enabled);
+
+    return res.status(200).json({
+      success: true,
+      camId: id,
+      surveillance: result,
+      message: enabled
+        ? '🤖 Vigilancia Autónoma con InsightFace ACTIVADA para esta cámara.'
+        : '⏹️ Vigilancia Autónoma pausada para esta cámara.'
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error configurando vigilancia autónoma.' });
+  }
+};
+
+/**
+ * Obtener estado global de la vigilancia autónoma
+ * GET /api/camaras/autovigilancia/status
+ */
+const getSurveillanceStatus = async (req, res) => {
+  try {
+    const surveillanceService = require('../services/surveillanceService');
+    return res.status(200).json(surveillanceService.getStatus());
+  } catch (err) {
+    return res.status(500).json({ error: 'Error obteniendo estado de vigilancia.' });
+  }
+};
+
+/**
+ * Configurar umbral de sensibilidad de la vigilancia autónoma
+ * POST /api/camaras/autovigilancia/threshold
+ */
+const setSurveillanceThreshold = async (req, res) => {
+  try {
+    const { threshold } = req.body;
+    const surveillanceService = require('../services/surveillanceService');
+    const updated = surveillanceService.setThreshold(threshold);
+    return res.status(200).json({ success: true, similarityThreshold: updated });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error configurando umbral de vigilancia.' });
   }
 };
 
@@ -268,6 +447,12 @@ module.exports = {
   createCamera,
   controlCamera,
   proxySnapshot,
+  pingCamera,
+  updateCamera,
+  toggleSurveillance,
+  getSurveillanceStatus,
+  setSurveillanceThreshold,
   deleteCamera
 };
+
 

@@ -37,9 +37,10 @@ class InsightFaceService {
   /**
    * Escanea una imagen usando el motor InsightFace
    * @param {string} imagePath Ruta de la imagen
+   * @param {string} [annotatedOutputPath] Ruta opcional para guardar evidencia anotada
    * @returns {Promise<Object>} Resultado biométrico con landmarks y 512-D vector
    */
-  async scanFace(imagePath) {
+  async scanFace(imagePath, annotatedOutputPath = null) {
     const resolvedPath = this.resolveImagePath(imagePath);
 
     if (!resolvedPath || !fs.existsSync(resolvedPath)) {
@@ -50,25 +51,32 @@ class InsightFaceService {
       };
     }
 
+    const args = [this.pythonScript, resolvedPath];
+    if (annotatedOutputPath) {
+      args.push(annotatedOutputPath);
+    }
+
     return new Promise((resolve) => {
-      execFile('python', [this.pythonScript, resolvedPath], { timeout: 10000 }, (err, stdout, stderr) => {
-        if (err || !stdout) {
+      execFile('python', args, { timeout: 12000 }, (err, stdout, stderr) => {
+        if (!stdout) {
           console.warn('[InsightFace] Error ejecutando scanner en python:', err?.message || stderr);
-          // Fallback controlado
-          return resolve(this.generateSyntheticBiometrics(resolvedPath));
+          return resolve({
+            success: false,
+            face_detected: false,
+            error: 'No se pudo procesar la imagen con el motor biométrico'
+          });
         }
 
         try {
           const parsed = JSON.parse(stdout.trim());
-          if (parsed.success) {
-            return resolve(parsed);
-          } else {
-            console.warn('[InsightFace] Scanner retornó error:', parsed.error);
-            return resolve(this.generateSyntheticBiometrics(resolvedPath));
-          }
+          return resolve(parsed);
         } catch (parseErr) {
-          console.error('[InsightFace] Error parseando salida JSON:', parseErr.message);
-          return resolve(this.generateSyntheticBiometrics(resolvedPath));
+          console.error('[InsightFace] Error parseando salida JSON de python:', parseErr.message, stdout);
+          return resolve({
+            success: false,
+            face_detected: false,
+            error: 'Salida de escáner biométrico no válida'
+          });
         }
       });
     });
@@ -166,40 +174,14 @@ class InsightFaceService {
   }
 
   /**
-   * Fallback biométrico de alta fidelidad si python no responde
+   * Fallback de seguridad si el entorno no dispone de python
    */
   generateSyntheticBiometrics(resolvedPath) {
-    // Generar un vector determinista basado en el tamaño y nombre del archivo
-    let statSize = 50000;
-    try {
-      const stats = fs.statSync(resolvedPath);
-      statSize = stats.size;
-    } catch (e) {}
-
-    const seed = statSize % 1000;
-    const embedding = [];
-    for (let i = 0; i < 512; i++) {
-      const val = Math.sin(seed + i * 0.17) * Math.cos(i * 0.31);
-      embedding.push(Math.round(val * 100000) / 100000);
-    }
-
     return {
-      success: true,
-      face_detected: true,
-      library: 'InsightFace (ArcFace 512-D Standard)',
-      confidence: 96.8,
-      bbox: [120, 80, 420, 440],
-      landmarks: [
-        { name: 'ojo_izquierdo', x: 210, y: 200 },
-        { name: 'ojo_derecho', x: 330, y: 200 },
-        { name: 'nariz', x: 270, y: 260 },
-        { name: 'boca_izquierda', x: 225, y: 340 },
-        { name: 'boca_derecha', x: 315, y: 340 }
-      ],
-      pose: { pitch: -0.5, yaw: 1.2, roll: 0.0 },
-      embedding_512d: embedding,
-      quality_score: 0.95,
-      aligned: true
+      success: false,
+      face_detected: false,
+      error: 'No se pudo verificar la presencia de un rostro humano en la imagen.',
+      embedding_512d: null
     };
   }
 }

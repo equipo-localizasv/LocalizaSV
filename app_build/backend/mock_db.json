@@ -848,6 +848,36 @@
       "created_at": "2026-09-17T21:46:06.893Z",
       "moderador_id": 5,
       "fecha_validacion": "2026-09-17T21:48:20.052Z"
+    },
+    {
+      "id": 13,
+      "caso_id": 3,
+      "ubicacion_lat": 13.6929,
+      "ubicacion_lng": -89.2182,
+      "porcentaje_confianza": 59.7,
+      "foto_evidencia_url": "/uploads/evidencia-ia-caso3-cam1-1789760559798.jpg",
+      "id_estado_alerta": 1,
+      "estado": "pendiente",
+      "tipo_origen": "Vigilancia Autónoma IA (Cámara Móvil IP Webcam)",
+      "ubicacion_nombre": "San Salvador Centro, El Salvador",
+      "comentarios": "Presunta aparición identificada automáticamente por InsightFace con un 59.7% de coincidencia con Anderson Steven Alfaro Grigalva. El moderador debe validar o descartar.",
+      "created_at": "2026-09-18T19:42:40.527Z"
+    },
+    {
+      "id": 14,
+      "caso_id": 3,
+      "ubicacion_lat": 13.6929,
+      "ubicacion_lng": -89.2182,
+      "porcentaje_confianza": 62.8,
+      "foto_evidencia_url": "/uploads/evidencia-ia-caso3-cam1-1789760626902.jpg",
+      "id_estado_alerta": 3,
+      "estado": "falso positivo",
+      "tipo_origen": "Vigilancia Autónoma IA (Cámara Móvil IP Webcam)",
+      "ubicacion_nombre": "San Salvador Centro, El Salvador",
+      "comentarios": null,
+      "created_at": "2026-09-18T19:43:47.505Z",
+      "moderador_id": 5,
+      "fecha_validacion": "2026-09-18T19:44:49.447Z"
     }
   ],
   "camaras": [
@@ -857,17 +887,17 @@
       "ubicacion": "San Salvador Centro, El Salvador",
       "lat": 13.6929,
       "lng": -89.2182,
-      "ip_address": "192.168.1.64:8080",
-      "base_url": "http://192.168.1.64:8080",
-      "stream_url": "http://192.168.1.64:8080/video",
-      "snapshot_url": "http://192.168.1.64:8080/shot.jpg",
+      "ip_address": "192.168.1.68:8080",
+      "base_url": "http://192.168.1.68:8080",
+      "stream_url": "http://192.168.1.68:8080/video",
+      "snapshot_url": "http://192.168.1.68:8080/shot.jpg",
       "tipo": "Cámara Móvil IP Webcam (Android)",
       "resolucion": "1080p FHD",
       "fps": 30,
       "linterna": false,
       "zoom": 0,
       "estado": "activa",
-      "ultima_actividad": "2026-09-17T21:40:16.190Z"
+      "ultima_actividad": "2026-09-18T19:37:02.498Z"
     }
   ],
   "tokens_fcm": [

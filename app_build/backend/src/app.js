@@ -62,12 +62,15 @@ app.use((err, req, res, next) => {
 // Server & WebSocket Initialization
 const server = http.createServer(app);
 const { initWebSocketServer, broadcast } = require('./wsServer');
+const surveillanceService = require('./services/surveillanceService');
 
 if (require.main === module) {
   server.listen(PORT, () => {
     console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT} with WebSocket support.`);
   });
   initWebSocketServer(server);
+  surveillanceService.setWebSocketBroadcaster(broadcast);
+  surveillanceService.start();
 }
 
 module.exports = app;
