@@ -958,5 +958,126 @@ textarea.form-control {
   border-color: rgba(56, 189, 248, 0.4);
 }
 
+/* ============================================================
+   CYBER-DEFENSE & FUTURISTIC HUD DESIGN SYSTEM TOKENS
+   ============================================================ */
+:root {
+  --neon-cyan: #00f0ff;
+  --neon-cyan-glow: rgba(0, 240, 255, 0.25);
+  --neon-emerald: #00ff9d;
+  --neon-emerald-glow: rgba(0, 255, 157, 0.25);
+  --neon-amber: #ffb703;
+  --neon-crimson: #ff0055;
+  --cyber-dark: #030712;
+  --cyber-surface: rgba(11, 19, 43, 0.75);
+  --cyber-border: rgba(0, 240, 255, 0.2);
+  --hud-font: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Futuristic HUD Panel with Neon Corner Brackets */
+.hud-panel {
+  position: relative;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(3, 7, 18, 0.95) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--cyber-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 20px rgba(0, 240, 255, 0.03);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-panel:hover {
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 240, 255, 0.15);
+}
+
+/* Tactical Corner Accents */
+.corner-hud {
+  position: relative;
+}
+.corner-hud::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid var(--neon-cyan);
+  border-left: 2px solid var(--neon-cyan);
+  pointer-events: none;
+  z-index: 10;
+}
+.corner-hud::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid var(--neon-cyan);
+  border-right: 2px solid var(--neon-cyan);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Pulsing Radar Dot */
+@keyframes cyberPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(0, 240, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 240, 255, 0); }
+}
+
+.cyber-beacon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  display: inline-block;
+  animation: cyberPulse 2s infinite;
+}
+
+.cyber-beacon-red {
+  background: var(--neon-crimson);
+  animation: cyberPulseRed 1.6s infinite;
+}
+
+@keyframes cyberPulseRed {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 0, 85, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(255, 0, 85, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 0, 85, 0); }
+}
+
+/* Tactical HUD badge */
+.cyber-badge-cyan {
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  color: #38bdf8;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-family: var(--hud-font);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Custom Tactical Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(3, 7, 18, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.55);
+}
+
 
 

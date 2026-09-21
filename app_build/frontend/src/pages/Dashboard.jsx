@@ -6,6 +6,8 @@ import { AuthContext } from '../App';
 import ReportSightingModal from '../components/ReportSightingModal';
 import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
 import MapaAlertas from '../components/MapaAlertas';
+import ReversePhotoSearchModal from '../components/ReversePhotoSearchModal';
+import AgeProgressionModal from '../components/AgeProgressionModal';
 
 const DEPARTAMENTOS_SV = [
   'San Salvador',
@@ -39,6 +41,8 @@ const Dashboard = () => {
   const [sightingModalOpen, setSightingModalOpen] = useState(false);
   const [sightingInitialCaseId, setSightingInitialCaseId] = useState(null);
   const [selectedFlyerCase, setSelectedFlyerCase] = useState(null);
+  const [reverseSearchOpen, setReverseSearchOpen] = useState(false);
+  const [ageProgressionCase, setAgeProgressionCase] = useState(null);
 
 
   const fetchCases = async () => {
@@ -157,12 +161,93 @@ const Dashboard = () => {
 
   return (
     <div className="animate-fade-in">
+      {/* Top Cyber Amber Alert Pulsing Banner */}
+      {cases.some(c => c.estado === 'Desaparecido') && (
+        <div style={{
+          background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.18), rgba(6, 13, 29, 0.95), rgba(239, 68, 68, 0.18))',
+          borderTop: '2px solid #ef4444',
+          borderBottom: '2px solid #ef4444',
+          padding: '0.65rem 1.25rem',
+          marginBottom: '1.75rem',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxShadow: '0 0 25px rgba(239, 68, 68, 0.3)',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <span className="cyber-beacon" style={{ background: '#ef4444', boxShadow: '0 0 12px #ef4444' }} />
+            <span style={{
+              background: 'rgba(239, 68, 68, 0.25)',
+              border: '1px solid #ef4444',
+              color: '#fca5a5',
+              fontWeight: 800,
+              fontSize: '0.75rem',
+              padding: '0.2rem 0.6rem',
+              borderRadius: '4px',
+              letterSpacing: '1px'
+            }}>
+              CÓDIGO ÁMBAR ACTIVO
+            </span>
+            <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>
+              Red Nacional de Vigilancia en alerta máxima • Prioridad en terminales y puestos de control
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              onClick={() => setReverseSearchOpen(true)}
+              style={{
+                background: 'rgba(0, 240, 255, 0.15)',
+                border: '1px solid #00f0ff',
+                color: '#00f0ff',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                padding: '0.35rem 0.75rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <span>🧬</span>
+              <span>Cotejo Biométrico Rápido</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="dashboard-header">
         <div>
-          <h1 style={{ fontSize: '2.25rem', marginBottom: '0.25rem' }}>Casos de Desaparición</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Plataforma comunitaria de búsqueda y geolocalización solidaria en El Salvador</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.25rem' }}>
+            <h1 style={{ fontSize: '2.25rem', margin: 0 }}>Casos de Desaparición</h1>
+            <span className="cyber-badge-cyan">SISTEMA CIBERNÉTICO HUD</span>
+          </div>
+          <p style={{ color: 'var(--text-secondary)' }}>Plataforma nacional de geolocalización, biometría 512D e inteligencia colaborativa en El Salvador</p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setReverseSearchOpen(true)}
+            className="btn"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              border: '1px solid #00f0ff',
+              color: '#00f0ff',
+              background: 'rgba(0, 240, 255, 0.12)',
+              fontWeight: 700,
+              padding: '0.6rem 1rem',
+              borderRadius: '8px',
+              boxShadow: '0 0 15px rgba(0, 240, 255, 0.2)'
+            }}
+          >
+            <span>🧬</span>
+            <span>Búsqueda Inversa por Foto (IA)</span>
+          </button>
           <button
             onClick={() => {
               setSightingInitialCaseId(null);
@@ -181,7 +266,7 @@ const Dashboard = () => {
             }}
           >
             <span>📸</span>
-            <span>Reportar Avistamiento con Foto</span>
+            <span>Reportar Avistamiento</span>
           </button>
           {user ? (
             <Link to="/reportar" className="btn btn-primary" style={{ padding: '0.6rem 1.2rem', fontWeight: 600 }}>
@@ -525,8 +610,8 @@ const Dashboard = () => {
       ) : (
         <div className="cases-grid">
           {filteredCases.map((caso) => (
-            <div key={caso.id} className="case-card glass-panel card-interactive-lift animate-fade-in">
-              <div className="case-card-img-wrapper">
+            <div key={caso.id} className="case-card hud-panel corner-hud card-interactive-lift animate-fade-in">
+              <div className="case-card-img-wrapper" style={{ position: 'relative' }}>
                 <img 
                   src={getImageUrl(caso.foto_url)} 
                   alt={caso.nombre_desaparecido} 
@@ -538,20 +623,34 @@ const Dashboard = () => {
                 <span className={`status-badge ${caso.estado === 'En Proceso de Rescate' ? 'warning' : caso.estado.toLowerCase()}`}>
                   {caso.estado}
                 </span>
+                <span style={{
+                  position: 'absolute',
+                  bottom: '6px',
+                  left: '6px',
+                  background: 'rgba(6, 13, 29, 0.85)',
+                  border: '1px solid rgba(0, 240, 255, 0.4)',
+                  color: '#00f0ff',
+                  fontSize: '0.65rem',
+                  padding: '0.15rem 0.4rem',
+                  borderRadius: '4px',
+                  fontFamily: 'monospace'
+                }}>
+                  ID #{caso.id} • BIO 512D
+                </span>
               </div>
               <div className="case-card-body">
-                <h3 className="case-card-title">{caso.nombre_desaparecido}</h3>
+                <h3 className="case-card-title" style={{ color: '#f8fafc' }}>{caso.nombre_desaparecido}</h3>
                 <div className="case-card-meta">
                   <div><strong>Edad:</strong> {caso.edad} años</div>
                   <div><strong>Género:</strong> {caso.genero}</div>
                   <div><strong>Visto el:</strong> {formatDate(caso.fecha_desaparicion)}</div>
-                  <div style={{ color: 'var(--text-primary)', marginTop: '0.25rem' }}>
+                  <div style={{ color: '#38bdf8', marginTop: '0.25rem', fontWeight: 600 }}>
                     📍 {caso.ubicacion_desaparicion}
                   </div>
                 </div>
                 <p className="case-card-desc">{caso.descripcion}</p>
 
-                {/* Tarea 4: Botón "Ayudar" o indicador de rescate */}
+                {/* Botón "Ayudar" o indicador de rescate */}
                 {caso.estado === 'Desaparecido' && (
                   user ? (
                     <button
@@ -645,7 +744,7 @@ const Dashboard = () => {
                     gap: '0.35rem',
                     padding: '0.45rem',
                     borderRadius: '6px',
-                    marginBottom: '0.5rem',
+                    marginBottom: '0.4rem',
                     transition: 'all 0.2s'
                   }}
                 >
@@ -653,8 +752,8 @@ const Dashboard = () => {
                   <span>Reportar que vi a esta persona</span>
                 </button>
 
-                {/* Acciones Solidarias: Boletín Se Busca y WhatsApp */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.75rem' }}>
+                {/* Acciones Solidarias: Boletín Se Busca y Proyección IA */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.4rem' }}>
                   <button
                     onClick={() => setSelectedFlyerCase(caso)}
                     style={{
@@ -663,7 +762,7 @@ const Dashboard = () => {
                       color: '#f87171',
                       borderRadius: '6px',
                       padding: '0.35rem',
-                      fontSize: '0.75rem',
+                      fontSize: '0.72rem',
                       fontWeight: '700',
                       cursor: 'pointer',
                       display: 'flex',
@@ -676,17 +775,14 @@ const Dashboard = () => {
                     <span>Afiche Se Busca</span>
                   </button>
                   <button
-                    onClick={() => {
-                      const text = `🚨 ALERTA: Ayúdanos a encontrar a ${caso.nombre_desaparecido} (${caso.edad} años). Visto en: ${caso.ubicacion_desaparicion}. Teléfono: ${caso.telefono_contacto}. Info: ${window.location.origin}/casos/${caso.id}`;
-                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-                    }}
+                    onClick={() => setAgeProgressionCase(caso)}
                     style={{
-                      background: 'rgba(37, 211, 102, 0.12)',
-                      border: '1px solid rgba(37, 211, 102, 0.3)',
-                      color: '#4ade80',
+                      background: 'rgba(0, 240, 255, 0.12)',
+                      border: '1px solid rgba(0, 240, 255, 0.35)',
+                      color: '#00f0ff',
                       borderRadius: '6px',
                       padding: '0.35rem',
-                      fontSize: '0.75rem',
+                      fontSize: '0.72rem',
                       fontWeight: '700',
                       cursor: 'pointer',
                       display: 'flex',
@@ -695,10 +791,36 @@ const Dashboard = () => {
                       gap: '0.25rem'
                     }}
                   >
-                    <span>💬</span>
-                    <span>Compartir</span>
+                    <span>⏳</span>
+                    <span>Proyección Edad IA</span>
                   </button>
                 </div>
+
+                <button
+                  onClick={() => {
+                    const text = `🚨 ALERTA: Ayúdanos a encontrar a ${caso.nombre_desaparecido} (${caso.edad} años). Visto en: ${caso.ubicacion_desaparicion}. Teléfono: ${caso.telefono_contacto}. Info: ${window.location.origin}/casos/${caso.id}`;
+                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(37, 211, 102, 0.12)',
+                    border: '1px solid rgba(37, 211, 102, 0.3)',
+                    color: '#4ade80',
+                    borderRadius: '6px',
+                    padding: '0.35rem',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    marginBottom: '0.75rem'
+                  }}
+                >
+                  <span>💬</span>
+                  <span>Compartir en WhatsApp</span>
+                </button>
 
                 <div className="case-card-footer">
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -732,9 +854,23 @@ const Dashboard = () => {
         caso={selectedFlyerCase}
         onClose={() => setSelectedFlyerCase(null)}
       />
+
+      {/* Modal de Búsqueda Inversa Biométrica 1:N */}
+      <ReversePhotoSearchModal
+        isOpen={reverseSearchOpen}
+        onClose={() => setReverseSearchOpen(false)}
+      />
+
+      {/* Modal de Simulación de Proyección de Edad Facial */}
+      <AgeProgressionModal
+        isOpen={Boolean(ageProgressionCase)}
+        caso={ageProgressionCase}
+        onClose={() => setAgeProgressionCase(null)}
+      />
     </div>
   );
 };
 
 export default Dashboard;
+
 

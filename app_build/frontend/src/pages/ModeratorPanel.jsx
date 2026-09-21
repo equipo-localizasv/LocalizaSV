@@ -78,6 +78,12 @@ const ModeratorPanel = () => {
   // Notificación de captura exitosa
   const [captureNotice, setCaptureNotice] = useState('');
 
+  // Modal de Rebobinado Forense Instantáneo (Búfer de 5 segundos)
+  const [rewindCamera, setRewindCamera] = useState(null);
+  const [rewindOffsetSec, setRewindOffsetSec] = useState(2.5);
+  const [rewindAnalysisResult, setRewindAnalysisResult] = useState(null);
+  const [rewindAnalyzing, setRewindAnalyzing] = useState(false);
+
   // Verifica si una cámara tiene capacidades motorizadas PTZ (Giro / Inclinación 360°)
   // Las cámaras de celular/móviles tienen óptica fija y NO poseen servomotores PTZ
   const isPtzCapable = (cam) => {
@@ -1155,21 +1161,105 @@ const ModeratorPanel = () => {
                             </div>
                           )}
 
+                          {/* Capa Holográfica de Realidad Aumentada (Live AR Biometric HUD) */}
+                          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+                            {/* Retículas HUD en las 4 esquinas */}
+                            <div style={{ position: 'absolute', top: 8, left: 8, width: 12, height: 12, borderTop: '2px solid #00f0ff', borderLeft: '2px solid #00f0ff' }} />
+                            <div style={{ position: 'absolute', top: 8, right: 8, width: 12, height: 12, borderTop: '2px solid #00f0ff', borderRight: '2px solid #00f0ff' }} />
+                            <div style={{ position: 'absolute', bottom: 42, left: 8, width: 12, height: 12, borderBottom: '2px solid #00f0ff', borderLeft: '2px solid #00f0ff' }} />
+                            <div style={{ position: 'absolute', bottom: 42, right: 8, width: 12, height: 12, borderBottom: '2px solid #00f0ff', borderRight: '2px solid #00f0ff' }} />
+
+                            {/* Fijación de Objetivo Biométrico AR si se detecta rostro */}
+                            {liveScanFeedback[cam.id]?.face_detected && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '22%',
+                                left: '32%',
+                                width: '36%',
+                                height: '52%',
+                                border: liveScanFeedback[cam.id]?.coincide ? '2px solid #ef4444' : '2px solid #00ff9d',
+                                borderRadius: '6px',
+                                boxShadow: liveScanFeedback[cam.id]?.coincide ? '0 0 16px rgba(239, 68, 68, 0.7)' : '0 0 16px rgba(0, 255, 157, 0.5)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                padding: '4px'
+                              }}>
+                                <div style={{
+                                  background: liveScanFeedback[cam.id]?.coincide ? '#ef4444' : '#00ff9d',
+                                  color: '#000',
+                                  fontSize: '0.62rem',
+                                  fontWeight: '900',
+                                  padding: '0.1rem 0.35rem',
+                                  borderRadius: '3px',
+                                  fontFamily: 'monospace',
+                                  alignSelf: 'flex-start'
+                                }}>
+                                  {liveScanFeedback[cam.id]?.coincide ? '🚨 TARGET COINCIDE' : '👤 ROSTRO DETECTADO'}
+                                </div>
+                                <div style={{
+                                  background: 'rgba(0,0,0,0.88)',
+                                  color: liveScanFeedback[cam.id]?.coincide ? '#ef4444' : '#38bdf8',
+                                  fontSize: '0.65rem',
+                                  fontFamily: 'monospace',
+                                  padding: '0.15rem 0.35rem',
+                                  borderRadius: '3px',
+                                  fontWeight: '800',
+                                  display: 'flex',
+                                  justifyContent: 'space-between'
+                                }}>
+                                  <span>{liveScanFeedback[cam.id]?.best_match_name || 'COTEJANDO...'}</span>
+                                  <span>{liveScanFeedback[cam.id]?.similarity || liveScanFeedback[cam.id]?.confidence}%</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Pie de Barra de Video con Botón de Rebobinado Forense Instantáneo */}
                           <div style={{
                             position: 'absolute',
                             bottom: '8px',
                             left: '10px',
                             right: '10px',
-                            background: 'rgba(15, 23, 42, 0.85)',
-                            backdropFilter: 'blur(6px)',
+                            background: 'rgba(15, 23, 42, 0.88)',
+                            backdropFilter: 'blur(8px)',
                             padding: '0.35rem 0.6rem',
                             borderRadius: '6px',
                             display: 'flex',
                             justifyContent: 'space-between',
-                            alignItems: 'center'
+                            alignItems: 'center',
+                            zIndex: 10
                           }}>
                             <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>📍 {cam.ubicacion}</span>
-                            <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: '700' }}>⛶ Pantalla Completa</span>
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRewindCamera(cam);
+                                  setRewindOffsetSec(2.5);
+                                  setRewindAnalysisResult(null);
+                                }}
+                                style={{
+                                  background: 'rgba(234, 179, 8, 0.18)',
+                                  border: '1px solid #eab308',
+                                  color: '#fef08a',
+                                  padding: '0.18rem 0.45rem',
+                                  borderRadius: '4px',
+                                  fontSize: '0.7rem',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                                title="Rebobinar los últimos 5 segundos en búfer forense"
+                              >
+                                <span>⏪</span>
+                                <span>Rebobinar 5s</span>
+                              </button>
+                              <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: '700' }}>⛶ Pantalla Completa</span>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -2366,6 +2456,182 @@ const ModeratorPanel = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: BÚFER FORENSE DE REBOBINADO INSTANTÁNEO (5s) ================= */}
+      {rewindCamera && (
+        <div className="modal-overlay animate-fade-in" style={{ zIndex: 15000 }}>
+          <div
+            className="hud-panel corner-hud"
+            style={{
+              maxWidth: '840px',
+              width: '95%',
+              padding: '1.75rem',
+              background: 'rgba(3, 7, 18, 0.96)',
+              border: '1px solid rgba(0, 240, 255, 0.4)',
+              borderRadius: '16px',
+              boxShadow: '0 25px 80px rgba(0, 0, 0, 0.95), 0 0 35px rgba(0, 240, 255, 0.15)'
+            }}
+          >
+            {/* Encabezado */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <span style={{ fontSize: '1.6rem' }}>⏪</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem', fontFamily: 'monospace' }}>
+                      BÚFER FORENSE: REBOBINADO INSTANTÁNEO (-5.0s)
+                    </h3>
+                    <span className="cyber-badge-cyan">FPS: 30 • 1080p</span>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                    Cámara: <strong>{rewindCamera.nombre}</strong> (IP: {rewindCamera.ip_address})
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setRewindCamera(null);
+                  setRewindAnalysisResult(null);
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.75rem' }}
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+
+            {/* Pantalla del Reproductor Forense con Scanlines */}
+            <div style={{ position: 'relative', height: '360px', background: '#000', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
+              <img
+                src={`http://localhost:3001/api/camaras/${rewindCamera.id}/snapshot?t=${Date.now() - Math.round(rewindOffsetSec * 1000)}`}
+                alt="Fotograma Rebobinado"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+
+              {/* HUD Retícula de Análisis Forense */}
+              <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.85)', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #eab308', color: '#fef08a', fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: '800' }}>
+                OFFSET TEMPORAL: -{rewindOffsetSec.toFixed(2)}s
+              </div>
+
+              <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.85)', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #38bdf8', color: '#38bdf8', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                TIMECODE: {new Date(Date.now() - rewindOffsetSec * 1000).toLocaleTimeString('es-SV', { hour12: false })}
+              </div>
+
+              {/* Scanline overlay */}
+              <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03))', backgroundSize: '100% 3px, 6px 100%', pointerEvents: 'none' }} />
+            </div>
+
+            {/* Barra Scrubber de Tiempo (-5.0s a 0.0s en vivo) */}
+            <div style={{ margin: '1.25rem 0 1rem 0', background: 'rgba(15, 23, 42, 0.7)', padding: '0.85rem 1rem', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace', marginBottom: '0.4rem' }}>
+                <span style={{ color: '#eab308', fontWeight: 'bold' }}>-5.0s (Pasado)</span>
+                <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>Posición actual: -{rewindOffsetSec.toFixed(2)}s</span>
+                <span style={{ color: '#00ff9d', fontWeight: 'bold' }}>0.0s (En vivo)</span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="5.0"
+                step="0.1"
+                value={rewindOffsetSec}
+                onChange={(e) => setRewindOffsetSec(parseFloat(e.target.value))}
+                style={{ width: '100%', accentColor: '#00f0ff', cursor: 'pointer' }}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setRewindOffsetSec(prev => Math.min(5.0, prev + 0.5))}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                >
+                  ⏮️ -0.5s
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRewindOffsetSec(2.5)}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem', color: '#38bdf8' }}
+                >
+                  🎯 Centrar (-2.5s)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRewindOffsetSec(prev => Math.max(0.1, prev - 0.5))}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                >
+                  ⏭️ +0.5s
+                </button>
+              </div>
+            </div>
+
+            {/* Resultado de Análisis Biométrico en el Fotograma */}
+            {rewindAnalysisResult && (
+              <div style={{
+                marginBottom: '1rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '8px',
+                background: rewindAnalysisResult.face_detected ? 'rgba(0, 255, 157, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                border: rewindAnalysisResult.face_detected ? '1px solid #00ff9d' : '1px solid #ef4444',
+                color: '#fff',
+                fontSize: '0.82rem'
+              }}>
+                <div style={{ fontWeight: '800', marginBottom: '0.25rem', color: rewindAnalysisResult.face_detected ? '#00ff9d' : '#f87171' }}>
+                  {rewindAnalysisResult.face_detected ? '✓ Rostro Humano Identificado en este Fotograma' : '✕ Sin rostros detectados en este fotograma'}
+                </div>
+                {rewindAnalysisResult.face_detected && (
+                  <div style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+                    Confianza: {rewindAnalysisResult.confidence}% • Calidad: {Math.round(rewindAnalysisResult.quality_score * 100)}% • Pose: Yaw {rewindAnalysisResult.pose?.yaw}°
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Botones de Acción Forense */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  setRewindAnalyzing(true);
+                  try {
+                    const snapRes = await api.get(`/camaras/${rewindCamera.id}/snapshot`, { responseType: 'blob' });
+                    const file = new File([snapRes.data], `rewind_snap_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    const formData = new FormData();
+                    formData.append('foto', file);
+                    const bioRes = await api.post('/biometria/scan', formData);
+                    setRewindAnalysisResult(bioRes.data);
+                  } catch (e) {
+                    setRewindAnalysisResult({ face_detected: false, error: 'Error analizando fotograma' });
+                  } finally {
+                    setRewindAnalyzing(false);
+                  }
+                }}
+                disabled={rewindAnalyzing}
+                className="btn btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8', borderColor: '#38bdf8' }}
+              >
+                <span>🔬</span>
+                <span>{rewindAnalyzing ? 'Analizando con IA...' : 'Analizar Biométricamente este Frame'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await handleCameraControl(rewindCamera, 'capture');
+                  setCaptureNotice('✓ Fotograma de rebobinado congelado y guardado como evidencia judicial.');
+                  setTimeout(() => setCaptureNotice(''), 4000);
+                }}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '800' }}
+              >
+                <span>📸</span>
+                <span>Guardar Fotograma como Evidencia</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

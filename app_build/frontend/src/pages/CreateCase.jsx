@@ -728,6 +728,44 @@ const CreateCase = () => {
             onChange={handleInputChange}
             disabled={loading}
           />
+          
+          {/* Salvadoran High-Transit Hub Quick Chips */}
+          <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>Puntos de Alto Tránsito SV:</span>
+            {[
+              'Terminal de Occidente',
+              'Terminal Nuevo Amanecer',
+              'Plaza Salvador del Mundo',
+              'Metrocentro San Salvador',
+              'Parque Libertad (S.S.)',
+              'Frontera Las Chinamas'
+            ].map((hub) => (
+              <button
+                key={hub}
+                type="button"
+                onClick={() => {
+                  setForm(prev => ({
+                    ...prev,
+                    ubicacion_desaparicion: prev.ubicacion_desaparicion 
+                      ? `${prev.ubicacion_desaparicion} - ${hub}` 
+                      : `${hub}, ${prev.departamento}`
+                  }));
+                }}
+                style={{
+                  background: 'rgba(0, 240, 255, 0.08)',
+                  border: '1px solid rgba(0, 240, 255, 0.3)',
+                  color: '#38bdf8',
+                  borderRadius: '12px',
+                  padding: '0.2rem 0.55rem',
+                  fontSize: '0.72rem',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                + {hub}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="form-group">

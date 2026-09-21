@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import MapaAlertas from '../components/MapaAlertas';
+import PoliceInterventionCertificateModal from '../components/PoliceInterventionCertificateModal';
 
 const AuthorityPanel = () => {
   const [alerts, setAlerts] = useState([]);
@@ -16,8 +17,13 @@ const AuthorityPanel = () => {
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
   const [broadcastCaseId, setBroadcastCaseId] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [geofenceRadius, setGeofenceRadius] = useState('15km'); // '5km' | '15km' | 'nacional'
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastSuccess, setBroadcastSuccess] = useState('');
+
+  // Búsqueda Predictiva de Isócronas y Certificado SHA-256
+  const [isochroneRadius, setIsochroneRadius] = useState('30m'); // '15m' | '30m' | '60m'
+  const [certificateTarget, setCertificateTarget] = useState({ isOpen: false, alerta: null, caso: null });
 
   const playEmergencyTone = () => {
     try {
@@ -445,6 +451,108 @@ const AuthorityPanel = () => {
         )}
       </div>
 
+      {/* Widget Táctico de Anillos de Dispersión / Isócronas Predictivas */}
+      <div className="hud-panel corner-hud" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem', background: 'rgba(6, 13, 29, 0.85)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#00f0ff' }}>
+                🌐 Anillos Predictivos de Desplazamiento e Isócronas
+              </h3>
+              <span className="cyber-badge-cyan">IA TÁCTICA PNC</span>
+            </div>
+            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
+              Cálculo cinemático de radio de búsqueda desde el último punto de contacto o avistamiento
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.4rem', background: 'rgba(0,0,0,0.4)', padding: '0.25rem', borderRadius: '8px' }}>
+            <button
+              onClick={() => setIsochroneRadius('15m')}
+              style={{
+                background: isochroneRadius === '15m' ? '#00f0ff' : 'transparent',
+                color: isochroneRadius === '15m' ? '#030712' : '#94a3b8',
+                border: 'none',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              🚶 15m A Pie (1.2 km)
+            </button>
+            <button
+              onClick={() => setIsochroneRadius('30m')}
+              style={{
+                background: isochroneRadius === '30m' ? '#00f0ff' : 'transparent',
+                color: isochroneRadius === '30m' ? '#030712' : '#94a3b8',
+                border: 'none',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              🚌 30m Bus (7.5 km)
+            </button>
+            <button
+              onClick={() => setIsochroneRadius('60m')}
+              style={{
+                background: isochroneRadius === '60m' ? '#00f0ff' : 'transparent',
+                color: isochroneRadius === '60m' ? '#030712' : '#94a3b8',
+                border: 'none',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              🚗 60m Vehículo (35 km)
+            </button>
+          </div>
+        </div>
+
+        {/* Tactical Recommendation Bar */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '1rem',
+          fontSize: '0.8rem',
+          background: 'rgba(0, 240, 255, 0.04)',
+          border: '1px dashed rgba(0, 240, 255, 0.25)',
+          borderRadius: '8px',
+          padding: '0.85rem'
+        }}>
+          <div>
+            <span style={{ color: '#00f0ff', fontWeight: 700 }}>🎯 Perímetro Estimado:</span>
+            <div style={{ color: '#f8fafc', marginTop: '0.2rem' }}>
+              {isochroneRadius === '15m' && 'Radio 1,200m • Cobertura en colonias y pasajes aledaños'}
+              {isochroneRadius === '30m' && 'Radio 7,500m • Terminales de transporte urbano y paradas clave'}
+              {isochroneRadius === '60m' && 'Radio 35,000m • Carreteras interdepartamentales y peajes'}
+            </div>
+          </div>
+          <div>
+            <span style={{ color: '#10b981', fontWeight: 700 }}>🚧 Puntos Críticos Sugeridos:</span>
+            <div style={{ color: '#cbd5e1', marginTop: '0.2rem' }}>
+              {isochroneRadius === '15m' && 'Parque Central, Pasarelas peatonales, Tiendas de conveniencia'}
+              {isochroneRadius === '30m' && 'Terminal de Occidente, Terminal Nuevo Amanecer, Salvador del Mundo'}
+              {isochroneRadius === '60m' && 'Carretera Los Chorros, Frontera Las Chinamas, Autopista Comalapa'}
+            </div>
+          </div>
+          <div>
+            <span style={{ color: '#f59e0b', fontWeight: 700 }}>🚨 Protocolo de Intervención:</span>
+            <div style={{ color: '#cbd5e1', marginTop: '0.2rem' }}>
+              {isochroneRadius === '15m' && 'Patrulla a pie y megáfono comunitario'}
+              {isochroneRadius === '30m' && 'Retén en paradas R-42, R-101 y unidades de control'}
+              {isochroneRadius === '60m' && 'Alerta a retenes policiales fronterizos PNC y cámaras LPR'}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Componente Mapa de Alertas (recibe las alertas filtradas) */}
       <MapaAlertas alerts={filteredAlerts} />
 
@@ -482,6 +590,7 @@ const AuthorityPanel = () => {
                   <th>Estado</th>
                   <th>Fecha de detección</th>
                   <th>Ubicación (lat, lng)</th>
+                  <th>Acción Forense</th>
                 </tr>
               </thead>
               <tbody>
@@ -502,6 +611,30 @@ const AuthorityPanel = () => {
                     <td style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
                       📍 {formatCoordinates(alerta.ubicacion_lat, alerta.ubicacion_lng)}
                     </td>
+                    <td>
+                      <button
+                        onClick={() => {
+                          const matchedCase = cases.find(c => c.id === alerta.caso_id);
+                          setCertificateTarget({ isOpen: true, alerta, caso: matchedCase });
+                        }}
+                        style={{
+                          background: 'rgba(0, 240, 255, 0.12)',
+                          border: '1px solid rgba(0, 240, 255, 0.4)',
+                          color: '#00f0ff',
+                          borderRadius: '6px',
+                          padding: '0.35rem 0.65rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <span>🛡️</span>
+                        <span>Despacho SHA-256</span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -509,6 +642,7 @@ const AuthorityPanel = () => {
           </div>
         )}
       </div>
+
 
       {/* Modal de Emisión de Alerta Nacional */}
       {broadcastModalOpen && (
@@ -582,6 +716,61 @@ const AuthorityPanel = () => {
               </select>
             </div>
 
+            {/* Selector de Geocerca Táctica */}
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label className="form-label">Geocerca Táctica de Difusión:</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setGeofenceRadius('5km')}
+                  style={{
+                    background: geofenceRadius === '5km' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(15, 23, 42, 0.8)',
+                    border: `1px solid ${geofenceRadius === '5km' ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
+                    color: geofenceRadius === '5km' ? '#fca5a5' : '#94a3b8',
+                    padding: '0.45rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  📍 5 km (Inmediato)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGeofenceRadius('15km')}
+                  style={{
+                    background: geofenceRadius === '15km' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(15, 23, 42, 0.8)',
+                    border: `1px solid ${geofenceRadius === '15km' ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
+                    color: geofenceRadius === '15km' ? '#fca5a5' : '#94a3b8',
+                    padding: '0.45rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🏙️ 15 km (Departamental)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGeofenceRadius('nacional')}
+                  style={{
+                    background: geofenceRadius === 'nacional' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(15, 23, 42, 0.8)',
+                    border: `1px solid ${geofenceRadius === 'nacional' ? '#ef4444' : 'rgba(255, 255, 255, 0.1)'}`,
+                    color: geofenceRadius === 'nacional' ? '#fca5a5' : '#94a3b8',
+                    padding: '0.45rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🇸🇻 Red Nacional Total
+                </button>
+              </div>
+            </div>
+
             <div className="form-group" style={{ marginBottom: '1.5rem' }}>
               <label className="form-label">Instrucciones Especiales / Mensaje de Difusión (Opcional)</label>
               <textarea
@@ -623,6 +812,14 @@ const AuthorityPanel = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Certificado e Intervención Policial Oficial SHA-256 */}
+      <PoliceInterventionCertificateModal
+        isOpen={certificateTarget.isOpen}
+        alerta={certificateTarget.alerta}
+        caso={certificateTarget.caso}
+        onClose={() => setCertificateTarget({ isOpen: false, alerta: null, caso: null })}
+      />
     </div>
   );
 };

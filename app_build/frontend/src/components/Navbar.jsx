@@ -43,33 +43,66 @@ const Navbar = () => {
   const currentRole = roleConfig[userRole] || roleConfig.ciudadano;
   const brandHome = user ? currentRole.homePath : '/';
 
+  const [clock, setClock] = React.useState(new Date().toLocaleTimeString('es-SV', { hour12: false }));
+  React.useEffect(() => {
+    const t = setInterval(() => setClock(new Date().toLocaleTimeString('es-SV', { hour12: false })), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   return (
-    <nav className="navbar">
+    <nav className="navbar" style={{
+      background: 'rgba(3, 7, 18, 0.85)',
+      backdropFilter: 'blur(16px)',
+      borderBottom: '1px solid rgba(0, 240, 255, 0.2)',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 240, 255, 0.08)'
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-        <Link to={brandHome} className="navbar-brand">
-          🔍 <span>LocalizaSV</span>
+        <Link to={brandHome} className="navbar-brand" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: '1.25rem',
+          fontWeight: '800',
+          letterSpacing: '-0.02em',
+          background: 'linear-gradient(135deg, #00f0ff 0%, #38bdf8 50%, #818cf8 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent'
+        }}>
+          <span>🛡️</span>
+          <span>LocalizaSV</span>
+          <span style={{
+            fontSize: '0.65rem',
+            padding: '0.1rem 0.4rem',
+            borderRadius: '4px',
+            background: 'rgba(0, 240, 255, 0.15)',
+            border: '1px solid rgba(0, 240, 255, 0.4)',
+            color: '#38bdf8',
+            fontFamily: 'monospace',
+            fontWeight: '700',
+            letterSpacing: '0.05em',
+            WebkitTextFillColor: '#38bdf8'
+          }}>
+            CYBER-DEFENSE
+          </span>
         </Link>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '0.4rem',
-          background: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
-          padding: '0.2rem 0.6rem',
+          gap: '0.5rem',
+          background: 'rgba(11, 19, 43, 0.7)',
+          border: '1px solid rgba(0, 255, 157, 0.3)',
+          padding: '0.25rem 0.7rem',
           borderRadius: '20px',
-          fontSize: '0.75rem',
-          color: '#34d399',
-          fontWeight: '600'
+          fontSize: '0.72rem',
+          color: '#00ff9d',
+          fontWeight: '700',
+          fontFamily: 'monospace'
         }}>
-          <span style={{ 
-            width: '8px', 
-            height: '8px', 
-            borderRadius: '50%', 
-            background: '#10b981', 
-            boxShadow: '0 0 8px #10b981',
-            display: 'inline-block' 
-          }}></span>
-          <span>Red Nacional Operativa</span>
+          <span className="cyber-beacon" style={{ background: '#00ff9d' }}></span>
+          <span>DEF-SYS ONLINE</span>
+          <span style={{ color: 'rgba(255,255,255,0.3)' }}>|</span>
+          <span style={{ color: '#38bdf8' }}>{clock}</span>
         </div>
       </div>
       <div className="navbar-menu">

@@ -4,6 +4,7 @@ import api from '../services/api';
 import { AuthContext } from '../App';
 import ReportSightingModal from '../components/ReportSightingModal';
 import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
+import AgeProgressionModal from '../components/AgeProgressionModal';
 
 const CaseDetail = () => {
   const { id } = useParams();
@@ -16,6 +17,7 @@ const CaseDetail = () => {
   const [updating, setUpdating] = useState(false);
   const [sightingModalOpen, setSightingModalOpen] = useState(false);
   const [flyerModalOpen, setFlyerModalOpen] = useState(false);
+  const [ageProgressionOpen, setAgeProgressionOpen] = useState(false);
 
 
   const fetchCaseDetail = async () => {
@@ -241,8 +243,31 @@ const CaseDetail = () => {
                 }}
               >
                 <span>📄</span>
-                <span>Generar Boletín "Se Busca"</span>
+                <span>Generar Cartel Forense (Multiformato)</span>
               </button>
+
+              <button
+                onClick={() => setAgeProgressionOpen(true)}
+                className="btn w-100"
+                style={{
+                  marginBottom: '0.5rem',
+                  padding: '0.6rem',
+                  fontSize: '0.85rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  background: 'rgba(0, 240, 255, 0.12)',
+                  border: '1px solid rgba(0, 240, 255, 0.4)',
+                  color: '#00f0ff',
+                  borderRadius: '6px'
+                }}
+              >
+                <span>⏳</span>
+                <span>Proyección de Edad Facial (IA)</span>
+              </button>
+
               <button
                 onClick={() => {
                   const text = `🚨 *ALERTA LOCALIZASV*: Ayúdanos a encontrar a *${caso.nombre_desaparecido}* (${caso.edad} años). Visto en: ${caso.ubicacion_desaparicion}. Teléfono de emergencia: ${caso.telefono_contacto} o PNC 911.\n\nVer caso completo: ${window.location.href}`;
@@ -293,10 +318,122 @@ const CaseDetail = () => {
 
           <div className="detail-info">
             <div className="detail-section">
-              <h1 className="detail-title">{caso.nombre_desaparecido}</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>
-                Caso registrado el {formatDate(caso.created_at)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <h1 className="detail-title" style={{ margin: 0 }}>{caso.nombre_desaparecido}</h1>
+                <span className="cyber-badge-cyan">CASO #{caso.id} • BIO 512D</span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Expediente digital registrado en la red nacional el {formatDate(caso.created_at)}
               </p>
+            </div>
+
+            {/* Forensic Investigation Milestone Roadmap */}
+            <div style={{
+              background: 'rgba(15, 23, 42, 0.75)',
+              border: '1px solid rgba(0, 240, 255, 0.25)',
+              borderRadius: '12px',
+              padding: '1.25rem',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{
+                fontSize: '0.8rem',
+                fontWeight: 800,
+                color: '#00f0ff',
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span>📍</span>
+                <span>Hoja de Ruta Forense y Estado del Operativo</span>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: '0.75rem',
+                position: 'relative'
+              }}>
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid #10b981',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>📋</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981' }}>1. Registro</div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Ficha activada</div>
+                </div>
+
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  background: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid #10b981',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>🧬</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981' }}>2. Biometría</div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Vector 512D OK</div>
+                </div>
+
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  background: caso.estado === 'Encontrado' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(0, 240, 255, 0.15)',
+                  border: `1px solid ${caso.estado === 'Encontrado' ? '#10b981' : '#00f0ff'}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>📡</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: caso.estado === 'Encontrado' ? '#10b981' : '#00f0ff' }}>
+                    3. Red YuiCam
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>CCTV Activo 1s</div>
+                </div>
+
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  background: caso.estado === 'En Proceso de Rescate' 
+                    ? 'rgba(245, 158, 11, 0.25)' 
+                    : caso.estado === 'Encontrado' 
+                    ? 'rgba(16, 185, 129, 0.15)' 
+                    : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${caso.estado === 'En Proceso de Rescate' ? '#f59e0b' : caso.estado === 'Encontrado' ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>🤝</div>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 800,
+                    color: caso.estado === 'En Proceso de Rescate' ? '#fbbf24' : caso.estado === 'Encontrado' ? '#10b981' : '#94a3b8'
+                  }}>
+                    4. Búsqueda
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                    {caso.estado === 'En Proceso de Rescate' ? 'Rescate en curso' : caso.estado === 'Encontrado' ? 'Culminado' : 'Pendiente apoyo'}
+                  </div>
+                </div>
+
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '8px',
+                  background: caso.estado === 'Encontrado' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                  border: `1px solid ${caso.estado === 'Encontrado' ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>✅</div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: caso.estado === 'Encontrado' ? '#10b981' : '#64748b' }}>
+                    5. Localizado
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>
+                    {caso.estado === 'Encontrado' ? 'Caso Resuelto' : 'En Búsqueda'}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="detail-section meta-grid">
@@ -322,7 +459,7 @@ const CaseDetail = () => {
 
             <div className="detail-section">
               <div className="detail-label">Último lugar conocido</div>
-              <div className="detail-value" style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+              <div className="detail-value" style={{ fontSize: '1.05rem', color: '#38bdf8' }}>
                 📍 {caso.ubicacion_desaparicion}
               </div>
             </div>
@@ -370,6 +507,12 @@ const CaseDetail = () => {
         isOpen={flyerModalOpen}
         caso={caso}
         onClose={() => setFlyerModalOpen(false)}
+      />
+
+      <AgeProgressionModal
+        isOpen={ageProgressionOpen}
+        caso={caso}
+        onClose={() => setAgeProgressionOpen(false)}
       />
     </div>
   );
