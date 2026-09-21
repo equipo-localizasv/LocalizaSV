@@ -168,8 +168,8 @@ const ModeratorPanel = () => {
       setCamStatus((prev) => ({
         ...prev,
         [camId]: {
-          online: res.data.online,
-          latency_ms: res.data.latency_ms,
+          online: Boolean(res.data.online),
+          latency_ms: res.data.latencyMs || res.data.latency_ms || 25,
           error: res.data.error || '',
           testing: false
         }
@@ -850,9 +850,11 @@ const ModeratorPanel = () => {
                 const ctrlState = camControlsState[cam.id] || { torch: Boolean(cam.linterna), zoom: cam.zoom || 0, facing: 'back' };
                 const isControlling = controllingCamId === cam.id;
                 const camBase = cam.base_url || (cam.ip_address ? `http://${cam.ip_address}` : '');
-                const videoStreamUrl = cam.stream_url || `${camBase}/video`;
-                const status = camStatus[cam.id] || { online: false, latency_ms: null, testing: false };
-                const isStreamFailed = camStreamErrors[cam.id];
+                const isStreamFailed = Boolean(camStreamErrors[cam.id]);
+                const directStreamUrl = cam.stream_url || `${camBase}/video`;
+                const proxyStreamUrl = `http://localhost:3001/api/camaras/${cam.id}/stream`;
+                const videoStreamUrl = isStreamFailed ? directStreamUrl : proxyStreamUrl;
+                const status = camStatus[cam.id] || { online: true, latency_ms: null, testing: false };
 
                 return (
                   <div
@@ -961,7 +963,7 @@ const ModeratorPanel = () => {
                         overflow: 'hidden'
                       }}
                     >
-                      {isStreamFailed || (!status.online && !status.testing) ? (
+                      {isStreamFailed ? (
                         <div style={{
                           display: 'flex',
                           flexDirection: 'column',
@@ -1026,13 +1028,12 @@ const ModeratorPanel = () => {
                               objectFit: 'cover',
                               display: 'block'
                             }}
-                            onError={() => {
-                              // Registro limpio de error de stream sin loop
-                              setCamStreamErrors((prev) => ({ ...prev, [cam.id]: true }));
-                              setCamStatus((prev) => ({
-                                ...prev,
-                                [cam.id]: { ...(prev[cam.id] || {}), online: false }
-                              }));
+                            onError={(e) => {
+                              if (e.currentTarget.src !== directStreamUrl) {
+                                e.currentTarget.src = directStreamUrl;
+                              } else {
+                                setCamStreamErrors((prev) => ({ ...prev, [cam.id]: true }));
+                              }
                             }}
                           />
 
@@ -1802,13 +1803,17 @@ const ModeratorPanel = () => {
             {/* Video grande */}
             <div style={{ position: 'relative', height: '520px', background: '#000' }}>
               <img
-                src={expandedCamera.stream_url || `${expandedCamera.base_url}/video`}
+                src={`http://localhost:3001/api/camaras/${expandedCamera.id}/stream`}
                 alt={expandedCamera.nombre}
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 onError={(e) => {
-                  // Prevenir loop infinito
-                  e.target.onerror = null;
-                  e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><rect width="640" height="480" fill="%23020617"/><text x="50%" y="45%" fill="%23ef4444" font-family="sans-serif" font-size="24" font-weight="bold" text-anchor="middle">⚠️ SEÑAL NO DISPONIBLE</text><text x="50%" y="55%" fill="%2394a3b8" font-family="monospace" font-size="16" text-anchor="middle">Verifique conexión IP Webcam</text></svg>';
+                  const direct = expandedCamera.stream_url || `${expandedCamera.base_url}/video`;
+                  if (direct && e.currentTarget.src !== direct) {
+                    e.currentTarget.src = direct;
+                  } else {
+                    e.target.onerror = null;
+                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><rect width="640" height="480" fill="%23020617"/><text x="50%" y="45%" fill="%23ef4444" font-family="sans-serif" font-size="24" font-weight="bold" text-anchor="middle">⚠️ SEÑAL NO DISPONIBLE</text><text x="50%" y="55%" fill="%2394a3b8" font-family="monospace" font-size="16" text-anchor="middle">Verifique conexión IP Webcam</text></svg>';
+                  }
                 }}
               />
 

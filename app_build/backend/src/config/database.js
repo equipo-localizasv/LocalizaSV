@@ -35,6 +35,7 @@ const readMockDb = () => {
     if (!parsed.usuarios) parsed.usuarios = [];
     if (!parsed.casos) parsed.casos = [];
     if (!parsed.alertas) parsed.alertas = [];
+    if (!parsed.camaras) parsed.camaras = [];
     return parsed;
   } catch (err) {
     return { usuarios: [], casos: [], alertas: [] };
@@ -424,6 +425,8 @@ const mockQuery = (text, params = []) => {
           db.camaras[idx].lng = parseFloat(params[3]) || db.camaras[idx].lng;
           db.camaras[idx].stream_url = params[4];
           db.camaras[idx].snapshot_url = params[5];
+          if (params[6]) db.camaras[idx].base_url = params[6];
+          if (params[7]) db.camaras[idx].ip_address = params[7];
         }
         db.camaras[idx].estado = 'activa';
         db.camaras[idx].ultima_actividad = new Date().toISOString();
