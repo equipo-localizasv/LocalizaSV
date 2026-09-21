@@ -23,6 +23,29 @@ def get_models():
     sface_path = os.path.join(models_dir, "face_recognition_sface_2021dec.onnx")
     return yunet_path, sface_path
 
+_cached_detector = None
+_cached_recognizer = None
+
+def get_detector_and_recognizer(w, h):
+    global _cached_detector, _cached_recognizer
+    yunet_path, sface_path = get_models()
+    if _cached_detector is None:
+        _cached_detector = cv2.FaceDetectorYN.create(
+            yunet_path,
+            "",
+            (w, h),
+            score_threshold=0.65,
+            nms_threshold=0.3,
+            top_k=5000
+        )
+    else:
+        _cached_detector.setInputSize((w, h))
+
+    if _cached_recognizer is None:
+        _cached_recognizer = cv2.FaceRecognizerSF.create(sface_path, "")
+
+    return _cached_detector, _cached_recognizer
+
 def analyze_face(image_path, annotate_output_path=None):
     result = {
         "success": False,
@@ -49,23 +72,7 @@ def analyze_face(image_path, annotate_output_path=None):
             return result
 
         h, w = img.shape[:2]
-        yunet_path, sface_path = get_models()
-
-        if not os.path.exists(yunet_path) or not os.path.exists(sface_path):
-            result["error"] = "Biometric models not found in scripts/models/"
-            return result
-
-        # 1. Initialize Deep Neural Network Face Detector (YuNet)
-        # Score threshold 0.65 ensures strict human face verification
-        detector = cv2.FaceDetectorYN.create(
-            yunet_path,
-            "",
-            (w, h),
-            score_threshold=0.65,
-            nms_threshold=0.3,
-            top_k=5000
-        )
-        detector.setInputSize((w, h))
+        detector, recognizer = get_detector_and_recognizer(w, h)
 
         _, faces = detector.detect(img)
 
@@ -125,7 +132,6 @@ def analyze_face(image_path, annotate_output_path=None):
         pitch_deg = round(float((nose_y - eye_mid_y) / (fh / 2.0 + 1e-6) * 25.0 - 5.0), 1)
 
         # 5. Extract Deep Neural Face Recognition Embedding (SFace/ArcFace)
-        recognizer = cv2.FaceRecognizerSF.create(sface_path, "")
         aligned_face = recognizer.alignCrop(img, best_face)
         deep_features = recognizer.feature(aligned_face).flatten() # 128-D deep vector
 
@@ -156,7 +162,7 @@ def analyze_face(image_path, annotate_output_path=None):
             # Green bounding box
             cv2.rectangle(annotated, (fx, fy), (fx + fw, fy + fh), (34, 197, 94), 2)
             # Corner markers
-            corner_len = min(20, fw // 4)
+            corner_len = min(20, int(fw * 0.2))
             cv2.line(annotated, (fx, fy), (fx + corner_len, fy), (56, 189, 248), 3)
             cv2.line(annotated, (fx, fy), (fx, fy + corner_len), (56, 189, 248), 3)
             cv2.line(annotated, (fx + fw, fy), (fx + fw - corner_len, fy), (56, 189, 248), 3)
@@ -191,6 +197,35 @@ def analyze_face(image_path, annotate_output_path=None):
         return result
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--worker":
+        # Ultra-fast Persistent Worker Mode: preloads models into memory
+        get_detector_and_recognizer(640, 360)
+        sys.stdout.write(json.dumps({"status": "ready"}) + "\n")
+        sys.stdout.flush()
+
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            if line == "PING":
+                sys.stdout.write(json.dumps({"status": "pong"}) + "\n")
+                sys.stdout.flush()
+                continue
+            try:
+                req = json.loads(line)
+                req_id = req.get("id")
+                img_path = req.get("image_path")
+                annotated = req.get("annotated_path")
+                res = analyze_face(img_path, annotated)
+                if req_id is not None:
+                    res["id"] = req_id
+                sys.stdout.write(json.dumps(res) + "\n")
+                sys.stdout.flush()
+            except Exception as e:
+                sys.stdout.write(json.dumps({"success": False, "error": str(e)}) + "\n")
+                sys.stdout.flush()
+        sys.exit(0)
+
     if len(sys.argv) < 2:
         print(json.dumps({"error": "Missing image path argument"}))
         sys.exit(1)

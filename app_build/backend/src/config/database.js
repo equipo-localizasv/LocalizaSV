@@ -399,15 +399,26 @@ const mockQuery = (text, params = []) => {
 
   // 12.15 UPDATE camaras
   if (normalizedText.includes('UPDATE camaras SET')) {
-    if (normalizedText.includes('linterna =') || normalizedText.includes('zoom =')) {
-      const [fieldVal, id] = params;
+    if (normalizedText.includes('pan =') || normalizedText.includes('tilt =') || normalizedText.includes('linterna =') || normalizedText.includes('zoom =') || normalizedText.includes('patrullaje')) {
+      const id = params[params.length - 1];
       const idx = (db.camaras || []).findIndex(c => c.id === parseInt(id));
       if (idx !== -1) {
+        if (normalizedText.includes('pan = $1, tilt = $2')) {
+          db.camaras[idx].pan = parseInt(params[0]) || 0;
+          db.camaras[idx].tilt = parseInt(params[1]) || 0;
+        } else if (normalizedText.includes('pan =')) {
+          db.camaras[idx].pan = parseInt(params[0]) || 0;
+        } else if (normalizedText.includes('tilt =')) {
+          db.camaras[idx].tilt = parseInt(params[0]) || 0;
+        }
         if (normalizedText.includes('linterna =')) {
-          db.camaras[idx].linterna = Boolean(fieldVal);
+          db.camaras[idx].linterna = Boolean(params[0]);
         }
         if (normalizedText.includes('zoom =')) {
-          db.camaras[idx].zoom = parseInt(fieldVal);
+          db.camaras[idx].zoom = parseInt(params[0]) || 0;
+        }
+        if (normalizedText.includes('patrullaje')) {
+          db.camaras[idx].patrullaje_activo = Boolean(params[0]);
         }
         db.camaras[idx].ultima_actividad = new Date().toISOString();
         writeMockDb(db);

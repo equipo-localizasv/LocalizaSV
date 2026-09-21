@@ -15,9 +15,10 @@ class AutonomousSurveillanceService {
   constructor() {
     this.intervalId = null;
     this.isRunning = false;
-    this.scanIntervalMs = 4000; // Escaneo cada 4 segundos por cámara
+    this.scanIntervalMs = 1000; // Escaneo ultra-rápido cada 1 segundo por cámara
     this.similarityThreshold = 52.0; // Umbral óptimo de detección para streams de cámara IP (%)
     this.cameraConfigs = {}; // { [camId]: { enabled: true } }
+    this.isCameraScanning = {}; // Prevenir acumulación de llamadas concurrentes por cámara
     this.cooldowns = new Map(); // key: `${camId}_${casoId}` -> timestamp
     this.cooldownDurationMs = 60000; // 60 segundos de enfriamiento entre alertas de la misma persona
     this.webSocketBroadcast = null;
@@ -138,10 +139,14 @@ class AutonomousSurveillanceService {
     for (const cam of cameras) {
       const config = this.cameraConfigs[cam.id] || { enabled: true };
       if (config.enabled === false) continue;
+      if (this.isCameraScanning[cam.id]) continue; // Omitir si la cámara aún procesa su escaneo anterior
 
-      await this.processCameraScan(cam, activeCases).catch(() => {
-        // Ignorar silenciosamente si la cámara física no respondió en este turno
-      });
+      this.isCameraScanning[cam.id] = true;
+      this.processCameraScan(cam, activeCases)
+        .catch(() => {})
+        .finally(() => {
+          this.isCameraScanning[cam.id] = false;
+        });
     }
   }
 
@@ -152,31 +157,61 @@ class AutonomousSurveillanceService {
     const baseUrl = cam.base_url || (cam.ip_address ? `http://${cam.ip_address}` : null);
     if (!baseUrl) return;
 
-    const snapshotUrl = cam.snapshot_url || `${baseUrl}/shot.jpg`;
-
-    // 1. Obtener fotograma de la cámara (timeout estricto 2.5s)
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-
-    let imageBuffer = null;
-    try {
-      const res = await fetch(snapshotUrl, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!res.ok) return;
-      const arr = await res.arrayBuffer();
-      imageBuffer = Buffer.from(arr);
-    } catch (fetchErr) {
-      clearTimeout(timeout);
-      return;
-    }
-
-    this.telemetry.totalScans++;
-    this.telemetry.lastScanTimestamp = new Date().toISOString();
+    const snapshotUrl = cam.snapshot_url || (cam.base_url ? (cam.base_url.startsWith('rtsp') ? `${cam.base_url}/live/ch1` : `${cam.base_url}/shot.jpg`) : null);
+    if (!snapshotUrl) return;
 
     // Guardar temporalmente para análisis
     const tempFilename = `temp_scan_cam${cam.id}_${Date.now()}.jpg`;
     const tempFilePath = path.join(this.uploadsDir, tempFilename);
-    fs.writeFileSync(tempFilePath, imageBuffer);
+
+    // 1. Obtener fotograma de la cámara (Soporte HTTP y RTSP ultra rápido)
+    const isRtsp = snapshotUrl.startsWith('rtsp://') || (cam.stream_url && cam.stream_url.startsWith('rtsp://'));
+    if (isRtsp) {
+      // Prioridad 1: Leer el fotograma en vivo ya decodificado por el streamer (0 milisegundos de latencia)
+      const snapCache = path.join(this.uploadsDir, 'latest_yuicam_snap.jpg');
+      let usedCache = false;
+      if (fs.existsSync(snapCache)) {
+        try {
+          const stat = fs.statSync(snapCache);
+          if (Date.now() - stat.mtimeMs < 4000) {
+            fs.copyFileSync(snapCache, tempFilePath);
+            usedCache = true;
+          }
+        } catch (e) {}
+      }
+
+      // Prioridad 2: Si el streamer no está activo, capturar directamente vía script
+      if (!usedCache) {
+        const { execFile } = require('child_process');
+        const snapScript = path.join(__dirname, '../../scripts/rtsp_snapshot.py');
+        const targetRtsp = snapshotUrl.startsWith('rtsp://') ? snapshotUrl : cam.stream_url;
+
+        await new Promise((resolve) => {
+          execFile('python', [snapScript, targetRtsp, tempFilePath], { timeout: 3500 }, () => {
+            resolve();
+          });
+        });
+      }
+
+      if (!fs.existsSync(tempFilePath)) return;
+    } else {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1800);
+
+      try {
+        const res = await fetch(snapshotUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!res.ok) return;
+        const arr = await res.arrayBuffer();
+        fs.writeFileSync(tempFilePath, Buffer.from(arr));
+      } catch (fetchErr) {
+        clearTimeout(timeout);
+        return;
+      }
+    }
+
+    this.telemetry.totalScans++;
+    this.telemetry.lastScanTimestamp = new Date().toISOString();
 
     try {
       // ================= FASE 1: FILTRO HUMANO ESTRICTO =================

@@ -37,20 +37,21 @@ const ModeratorPanel = () => {
 
   // Estados de control de cámara activa
   const [controllingCamId, setControllingCamId] = useState(null);
-  const [camControlsState, setCamControlsState] = useState({}); // { [camId]: { torch: false, zoom: 0, facing: 'back', statusMsg: '' } }
+  const [camControlsState, setCamControlsState] = useState({}); // { [camId]: { torch: false, zoom: 0, facing: 'back', pan: 0, tilt: 0, patrol: false, statusMsg: '' } }
   const [camStatus, setCamStatus] = useState({}); // { [camId]: { online: boolean, latency_ms: number, error: string, testing: boolean } }
   const [camStreamErrors, setCamStreamErrors] = useState({}); // { [camId]: boolean }
+  const [cameraSubTab, setCameraSubTab] = useState({}); // { [camId]: 'ptz' | 'tools' }
 
-  // Modal para conectar nueva cámara IP Webcam
+  // Modal para conectar nueva cámara (PTZ Wi-Fi / IP Webcam)
   const [showAddCamModal, setShowAddCamModal] = useState(false);
   const [newCamForm, setNewCamForm] = useState({
-    nombre: 'Cámara Móvil IP Webcam',
-    ip_address: '192.168.1.50:8080',
+    nombre: 'Cámara Robótica PTZ Wi-Fi 01',
+    ip_address: '192.168.1.75:8080',
     departamento: 'San Salvador',
     ubicacion: 'San Salvador Centro, El Salvador',
     lat: '13.6929',
     lng: '-89.2182',
-    tipo: 'Cámara Móvil IP Webcam (Android)',
+    tipo: 'Cámara IP Wi-Fi PTZ 360° (Robótica / Domo)',
     resolucion: '1080p FHD',
     fps: '30'
   });
@@ -76,6 +77,18 @@ const ModeratorPanel = () => {
 
   // Notificación de captura exitosa
   const [captureNotice, setCaptureNotice] = useState('');
+
+  // Verifica si una cámara tiene capacidades motorizadas PTZ (Giro / Inclinación 360°)
+  // Las cámaras de celular/móviles tienen óptica fija y NO poseen servomotores PTZ
+  const isPtzCapable = (cam) => {
+    if (!cam) return false;
+    const tipo = (cam.tipo || '').toLowerCase();
+    const nombre = (cam.nombre || '').toLowerCase();
+    if (tipo.includes('móvil') || tipo.includes('movil') || tipo.includes('celular') || tipo.includes('android') || (tipo.includes('webcam') && !tipo.includes('ptz'))) {
+      return false;
+    }
+    return tipo.includes('ptz') || tipo.includes('robót') || tipo.includes('robot') || tipo.includes('domo') || tipo.includes('360') || tipo.includes('yuicam') || nombre.includes('ptz') || nombre.includes('robót') || nombre.includes('yuicam');
+  };
 
   // Síntesis de sonido de alerta táctico (Web Audio API nativo)
   const playAlertChime = () => {
@@ -276,7 +289,7 @@ const ModeratorPanel = () => {
     };
   }, []);
 
-  // Control remoto de hardware IP Webcam (Linterna, Zoom, Enfoque, Switch, Captura)
+  // Control remoto de hardware y movimiento PTZ 360°
   const handleCameraControl = async (cam, action, extraPayload = {}) => {
     setControllingCamId(cam.id);
     try {
@@ -285,7 +298,14 @@ const ModeratorPanel = () => {
         ...extraPayload
       });
 
-      const current = camControlsState[cam.id] || { torch: false, zoom: 0, facing: 'back' };
+      const current = camControlsState[cam.id] || {
+        torch: Boolean(cam.linterna),
+        zoom: cam.zoom || 0,
+        facing: 'back',
+        pan: cam.pan || 0,
+        tilt: cam.tilt || 0,
+        patrol: Boolean(cam.patrullaje_activo)
+      };
       const updated = { ...current };
 
       if (action === 'torch_on') updated.torch = true;
@@ -293,32 +313,56 @@ const ModeratorPanel = () => {
       if (action === 'zoom') updated.zoom = extraPayload.zoomValue;
       if (action === 'switch_camera') updated.facing = extraPayload.cameraFacing;
 
+      // Actualizar coordenadas PTZ recibidas
+      if (res.data.pan !== undefined) updated.pan = res.data.pan;
+      if (res.data.tilt !== undefined) updated.tilt = res.data.tilt;
+      if (res.data.zoom !== undefined) updated.zoom = res.data.zoom;
+      if (res.data.patrullaje_activo !== undefined) updated.patrol = res.data.patrullaje_activo;
+
+      // Actualizar también en la lista de cámaras
+      setCameras((prev) =>
+        prev.map((c) => (c.id === cam.id ? { ...c, ...res.data } : c))
+      );
+      if (expandedCamera && expandedCamera.id === cam.id) {
+        setExpandedCamera((prev) => ({ ...prev, ...res.data }));
+      }
+
       if (res.data.captured_image_url) {
         setCaptureNotice(`📸 Fotograma capturado con éxito: ${res.data.captured_image_url}`);
         setPreviewImage(`http://localhost:3001${res.data.captured_image_url}`);
         setTimeout(() => setCaptureNotice(''), 6000);
-      } else if (res.data.warning) {
-        updated.statusMsg = res.data.warning;
-        setTimeout(() => {
-          setCamControlsState((prev) => ({
-            ...prev,
-            [cam.id]: { ...(prev[cam.id] || {}), statusMsg: '' }
-          }));
-        }, 5000);
       } else {
-        updated.statusMsg = `✓ Comando "${action}" enviado con éxito a la cámara.`;
+        const ptzLabels = {
+          ptz_up: '⬆️ Inclinación hacia arriba (+15°)',
+          ptz_down: '⬇️ Inclinación hacia abajo (-15°)',
+          ptz_left: '⬅️ Giro hacia la izquierda (-15°)',
+          ptz_right: '➡️ Giro hacia la derecha (+15°)',
+          ptz_upleft: '↖️ Diagonal Arriba-Izquierda',
+          ptz_upright: '↗️ Diagonal Arriba-Derecha',
+          ptz_downleft: '↙️ Diagonal Abajo-Izquierda',
+          ptz_downright: '↘️ Diagonal Abajo-Derecha',
+          ptz_center: '🎯 Posición Central Restaurada (0°, 0°)',
+          ptz_patrol: res.data.patrullaje_activo ? '🔄 Auto-Patrullaje 360° ACTIVADO' : '⏹️ Auto-Patrullaje DETENIDO',
+          zoom_in: `➕ Zoom Acercado (${updated.zoom}%)`,
+          zoom_out: `➖ Zoom Alejado (${updated.zoom}%)`,
+          focus: '🎯 Enfoque calibrado',
+          torch_on: '💡 Linterna Activada',
+          torch_off: '💡 Linterna Apagada'
+        };
+
+        updated.statusMsg = res.data.message || ptzLabels[action] || `✓ Comando "${action}" ejecutado.`;
         setTimeout(() => {
           setCamControlsState((prev) => ({
             ...prev,
             [cam.id]: { ...(prev[cam.id] || {}), statusMsg: '' }
           }));
-        }, 3000);
+        }, 3500);
       }
 
       setCamControlsState((prev) => ({ ...prev, [cam.id]: updated }));
     } catch (err) {
       console.error('Error controlando cámara:', err);
-      alert('No se pudo enviar el comando a la cámara IP. Verifique que la aplicación IP Webcam esté activa en el teléfono.');
+      alert('No se pudo enviar el comando a la cámara IP. Verifique la conexión.');
     } finally {
       setControllingCamId(null);
     }
@@ -847,7 +891,15 @@ const ModeratorPanel = () => {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.75rem' }}>
               {cameras.map((cam) => {
-                const ctrlState = camControlsState[cam.id] || { torch: Boolean(cam.linterna), zoom: cam.zoom || 0, facing: 'back' };
+                const ctrlState = camControlsState[cam.id] || {
+                  torch: Boolean(cam.linterna),
+                  zoom: cam.zoom || 0,
+                  facing: 'back',
+                  pan: cam.pan || 0,
+                  tilt: cam.tilt || 0,
+                  patrol: Boolean(cam.patrullaje_activo)
+                };
+                const activeSubTab = cameraSubTab[cam.id] || 'ptz';
                 const isControlling = controllingCamId === cam.id;
                 const camBase = cam.base_url || (cam.ip_address ? `http://${cam.ip_address}` : '');
                 const isStreamFailed = Boolean(camStreamErrors[cam.id]);
@@ -1249,149 +1301,360 @@ const ModeratorPanel = () => {
                       </div>
                     )}
 
-                    {/* BARRA DE CONTROL DE LA CÁMARA (ÚLTIMO MODELO) */}
+                    {/* BARRA DE CONTROL DE LA CÁMARA (MOVIMIENTO ROBÓTICO PTZ + HERRAMIENTAS) */}
                     <div style={{
-                      padding: '1rem',
+                      padding: '0.85rem 1rem 1rem 1rem',
                       background: 'rgba(15, 23, 42, 0.6)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '0.75rem'
                     }}>
-                      <div style={{
-                        fontSize: '0.75rem',
-                        color: 'var(--text-secondary)',
-                        textTransform: 'uppercase',
-                        fontWeight: '700',
-                        letterSpacing: '0.5px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <span>Controles de Hardware IP Webcam</span>
-                        {isControlling && <span style={{ color: '#f59e0b' }}>Enviando comando...</span>}
-                      </div>
+                      {/* Sub-selector o Encabezado de Cámara según sus capacidades de hardware */}
+                      {isPtzCapable(cam) ? (
+                        <div style={{
+                          display: 'flex',
+                          background: 'rgba(0, 0, 0, 0.45)',
+                          padding: '0.2rem',
+                          borderRadius: '8px',
+                          gap: '0.25rem'
+                        }}>
+                          <button
+                            type="button"
+                            onClick={() => setCameraSubTab((prev) => ({ ...prev, [cam.id]: 'ptz' }))}
+                            style={{
+                              flex: 1,
+                              padding: '0.35rem',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: activeSubTab === 'ptz' ? '#0284c7' : 'transparent',
+                              color: activeSubTab === 'ptz' ? '#fff' : '#94a3b8',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <span>🕹️</span>
+                            <span>Movimiento PTZ 360°</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCameraSubTab((prev) => ({ ...prev, [cam.id]: 'tools' }))}
+                            style={{
+                              flex: 1,
+                              padding: '0.35rem',
+                              border: 'none',
+                              borderRadius: '6px',
+                              background: activeSubTab === 'tools' ? '#0284c7' : 'transparent',
+                              color: activeSubTab === 'tools' ? '#fff' : '#94a3b8',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.35rem',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <span>⚙️</span>
+                            <span>Herramientas & Flash</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: 'rgba(30, 41, 59, 0.45)',
+                          padding: '0.45rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(56, 189, 248, 0.2)'
+                        }}>
+                          <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <span>📱</span>
+                            <span>Cámara Móvil (Óptica Fija • Sin Servos PTZ)</span>
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: '#cbd5e1', background: 'rgba(255,255,255,0.08)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                            Herramientas del Teléfono
+                          </span>
+                        </div>
+                      )}
 
-                      {/* Botones de Control Directo */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-                        {/* 1. Linterna / Flash */}
-                        <button
-                          onClick={() => handleCameraControl(cam, ctrlState.torch ? 'torch_off' : 'torch_on')}
-                          disabled={isControlling}
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.5rem 0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: '700',
-                            background: ctrlState.torch ? 'rgba(234, 179, 8, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                            borderColor: ctrlState.torch ? '#eab308' : 'rgba(255, 255, 255, 0.1)',
-                            color: ctrlState.torch ? '#fef08a' : '#fff',
+                      {/* CONTENIDO: MOVIMIENTO ROBÓTICO PTZ (SOLO PARA CÁMARAS CON MOTORES FÍSICOS PTZ) */}
+                      {isPtzCapable(cam) && activeSubTab === 'ptz' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          {/* HUD de Orientación de la Cámara */}
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: 'rgba(2, 6, 23, 0.8)',
+                            padding: '0.35rem 0.6rem',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(14, 165, 233, 0.2)',
+                            fontSize: '0.72rem',
+                            fontFamily: 'monospace'
+                          }}>
+                            <span style={{ color: '#38bdf8' }}>
+                              PAN: <strong>{ctrlState.pan || 0}°</strong>
+                            </span>
+                            <span style={{ color: '#a855f7' }}>
+                              TILT: <strong>{ctrlState.tilt || 0}°</strong>
+                            </span>
+                            <span style={{ color: '#22c55e' }}>
+                              ZOOM: <strong>{ctrlState.zoom || 0}%</strong>
+                            </span>
+                          </div>
+
+                          {/* Cruceta Direccional 360 Táctica */}
+                          <div style={{
                             display: 'flex',
                             flexDirection: 'column',
                             alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                          title="Encender o apagar la linterna del teléfono"
-                        >
-                          <span style={{ fontSize: '1.1rem' }}>💡</span>
-                          <span>{ctrlState.torch ? 'Flash ON' : 'Flash OFF'}</span>
-                        </button>
+                            gap: '0.35rem',
+                            background: 'rgba(2, 6, 23, 0.5)',
+                            padding: '0.6rem',
+                            borderRadius: '10px',
+                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                          }}>
+                            {/* Fila 1 */}
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_upleft')}
+                                disabled={isControlling}
+                                style={{ width: '38px', height: '34px', borderRadius: '6px', background: 'rgba(30,41,59,0.7)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem' }}
+                                title="Mover Arriba-Izquierda"
+                              >↖️</button>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_up')}
+                                disabled={isControlling}
+                                style={{ width: '48px', height: '34px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold' }}
+                                title="Inclinar Arriba (Tilt Up)"
+                              >⬆️</button>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_upright')}
+                                disabled={isControlling}
+                                style={{ width: '38px', height: '34px', borderRadius: '6px', background: 'rgba(30,41,59,0.7)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem' }}
+                                title="Mover Arriba-Derecha"
+                              >↗️</button>
+                            </div>
 
-                        {/* 2. Auto-Focus */}
-                        <button
-                          onClick={() => handleCameraControl(cam, 'focus')}
-                          disabled={isControlling}
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.5rem 0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: '700',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                          title="Forzar enfoque automático"
-                        >
-                          <span style={{ fontSize: '1.1rem' }}>🎯</span>
-                          <span>Enfocar</span>
-                        </button>
+                            {/* Fila 2 */}
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_left')}
+                                disabled={isControlling}
+                                style={{ width: '48px', height: '34px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold' }}
+                                title="Girar Izquierda (Pan Left)"
+                              >⬅️</button>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_center')}
+                                disabled={isControlling}
+                                style={{ width: '38px', height: '34px', borderRadius: '6px', background: 'rgba(234, 179, 8, 0.25)', border: '1px solid #eab308', color: '#fef08a', cursor: 'pointer', fontSize: '0.95rem' }}
+                                title="Centrar Posición Home (0°, 0°)"
+                              >🎯</button>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_right')}
+                                disabled={isControlling}
+                                style={{ width: '48px', height: '34px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold' }}
+                                title="Girar Derecha (Pan Right)"
+                              >➡️</button>
+                            </div>
 
-                        {/* 3. Cambiar Cámara Frontal / Trasera */}
-                        <button
-                          onClick={() => handleCameraControl(cam, 'switch_camera', { cameraFacing: ctrlState.facing === 'front' ? 'back' : 'front' })}
-                          disabled={isControlling}
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.5rem 0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: '700',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                          title="Alternar entre cámara frontal y trasera"
-                        >
-                          <span style={{ fontSize: '1.1rem' }}>🔄</span>
-                          <span>{ctrlState.facing === 'front' ? 'Trasera' : 'Frontal'}</span>
-                        </button>
+                            {/* Fila 3 */}
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_downleft')}
+                                disabled={isControlling}
+                                style={{ width: '38px', height: '34px', borderRadius: '6px', background: 'rgba(30,41,59,0.7)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem' }}
+                                title="Mover Abajo-Izquierda"
+                              >↙️</button>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_down')}
+                                disabled={isControlling}
+                                style={{ width: '48px', height: '34px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold' }}
+                                title="Inclinar Abajo (Tilt Down)"
+                              >⬇️</button>
+                              <button
+                                onClick={() => handleCameraControl(cam, 'ptz_downright')}
+                                disabled={isControlling}
+                                style={{ width: '38px', height: '34px', borderRadius: '6px', background: 'rgba(30,41,59,0.7)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem' }}
+                                title="Mover Abajo-Derecha"
+                              >↘️</button>
+                            </div>
+                          </div>
 
-                        {/* 4. Capturar Foto HD */}
-                        <button
-                          onClick={() => handleCameraControl(cam, 'capture')}
-                          disabled={isControlling}
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.5rem 0.25rem',
-                            fontSize: '0.75rem',
-                            fontWeight: '700',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            gap: '0.2rem'
-                          }}
-                          title="Descarga una foto en alta definición directamente de la cámara"
-                        >
-                          <span style={{ fontSize: '1.1rem' }}>📸</span>
-                          <span>Capturar</span>
-                        </button>
-                      </div>
-
-                      {/* Control de Zoom Digital */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.5rem',
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        padding: '0.4rem 0.6rem',
-                        borderRadius: '6px'
-                      }}>
-                        <span style={{ fontSize: '0.75rem', color: '#cbd5e1', fontWeight: '600' }}>
-                          🔍 Zoom:
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          {[0, 25, 50, 80].map((zVal) => (
+                          {/* Zoom Rápido y Auto-Patrullaje 360 */}
+                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                             <button
-                              key={zVal}
-                              onClick={() => handleCameraControl(cam, 'zoom', { zoomValue: zVal })}
+                              onClick={() => handleCameraControl(cam, 'zoom_out')}
+                              disabled={isControlling}
+                              className="btn btn-secondary"
+                              style={{ flex: 1, padding: '0.35rem 0.5rem', fontSize: '0.72rem', fontWeight: '700' }}
+                              title="Alejar Zoom (-10%)"
+                            >
+                              ➖ Alejar
+                            </button>
+                            <button
+                              onClick={() => handleCameraControl(cam, 'zoom_in')}
+                              disabled={isControlling}
+                              className="btn btn-secondary"
+                              style={{ flex: 1, padding: '0.35rem 0.5rem', fontSize: '0.72rem', fontWeight: '700' }}
+                              title="Acercar Zoom (+10%)"
+                            >
+                              ➕ Acercar
+                            </button>
+                            <button
+                              onClick={() => handleCameraControl(cam, 'ptz_patrol')}
                               disabled={isControlling}
                               style={{
-                                background: ctrlState.zoom === zVal ? '#0ea5e9' : 'rgba(255, 255, 255, 0.08)',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: '4px',
-                                padding: '0.2rem 0.5rem',
+                                flex: 1.3,
+                                padding: '0.35rem 0.5rem',
                                 fontSize: '0.72rem',
-                                fontWeight: '700',
-                                cursor: 'pointer'
+                                fontWeight: '800',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                background: ctrlState.patrol ? 'rgba(34, 197, 94, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                                border: ctrlState.patrol ? '1px solid #22c55e' : '1px solid rgba(255, 255, 255, 0.15)',
+                                color: ctrlState.patrol ? '#4ade80' : '#cbd5e1'
                               }}
+                              title="Ronda automática continua horizontal 360°"
                             >
-                              {zVal === 0 ? '1x' : `${Math.round(zVal / 25) + 1}x`}
+                              {ctrlState.patrol ? '🟢 Patrullando' : '🔄 Patrullaje 360°'}
                             </button>
-                          ))}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        /* CONTENIDO SUB-PESTAÑA 2: HERRAMIENTAS DE HARDWARE */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                            {/* 1. Linterna / Flash */}
+                            <button
+                              onClick={() => handleCameraControl(cam, ctrlState.torch ? 'torch_off' : 'torch_on')}
+                              disabled={isControlling}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '0.5rem 0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '700',
+                                background: ctrlState.torch ? 'rgba(234, 179, 8, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                borderColor: ctrlState.torch ? '#eab308' : 'rgba(255, 255, 255, 0.1)',
+                                color: ctrlState.torch ? '#fef08a' : '#fff',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}
+                              title="Encender o apagar la linterna"
+                            >
+                              <span style={{ fontSize: '1.1rem' }}>💡</span>
+                              <span>{ctrlState.torch ? 'Flash ON' : 'Flash OFF'}</span>
+                            </button>
+
+                            {/* 2. Auto-Focus */}
+                            <button
+                              onClick={() => handleCameraControl(cam, 'focus')}
+                              disabled={isControlling}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '0.5rem 0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '700',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}
+                              title="Forzar enfoque automático"
+                            >
+                              <span style={{ fontSize: '1.1rem' }}>🎯</span>
+                              <span>Enfocar</span>
+                            </button>
+
+                            {/* 3. Cambiar Cámara Frontal / Trasera */}
+                            <button
+                              onClick={() => handleCameraControl(cam, 'switch_camera', { cameraFacing: ctrlState.facing === 'front' ? 'back' : 'front' })}
+                              disabled={isControlling}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '0.5rem 0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '700',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}
+                              title="Alternar entre cámara frontal y trasera"
+                            >
+                              <span style={{ fontSize: '1.1rem' }}>🔄</span>
+                              <span>{ctrlState.facing === 'front' ? 'Trasera' : 'Frontal'}</span>
+                            </button>
+
+                            {/* 4. Capturar Foto HD */}
+                            <button
+                              onClick={() => handleCameraControl(cam, 'capture')}
+                              disabled={isControlling}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '0.5rem 0.25rem',
+                                fontSize: '0.75rem',
+                                fontWeight: '700',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.2rem'
+                              }}
+                              title="Descargar foto en alta definición directamente"
+                            >
+                              <span style={{ fontSize: '1.1rem' }}>📸</span>
+                              <span>Capturar</span>
+                            </button>
+                          </div>
+
+                          {/* Presets de Zoom */}
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.5rem',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            padding: '0.4rem 0.6rem',
+                            borderRadius: '6px'
+                          }}>
+                            <span style={{ fontSize: '0.75rem', color: '#cbd5e1', fontWeight: '600' }}>
+                              🔍 Presets de Zoom:
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              {[0, 25, 50, 80].map((zVal) => (
+                                <button
+                                  key={zVal}
+                                  onClick={() => handleCameraControl(cam, 'zoom', { zoomValue: zVal })}
+                                  disabled={isControlling}
+                                  style={{
+                                    background: ctrlState.zoom === zVal ? '#0ea5e9' : 'rgba(255, 255, 255, 0.08)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    padding: '0.2rem 0.5rem',
+                                    fontSize: '0.72rem',
+                                    fontWeight: '700',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {zVal === 0 ? '1x' : `${Math.round(zVal / 25) + 1}x`}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Botón Principal: Disparar Detección Manual con IA */}
                       <button
@@ -1647,7 +1910,7 @@ const ModeratorPanel = () => {
               </button>
             </div>
 
-            {/* Tip de la App IP Webcam */}
+            {/* Tip de Conexión de Cámaras */}
             <div style={{
               background: 'rgba(14, 165, 233, 0.1)',
               border: '1px solid rgba(14, 165, 233, 0.3)',
@@ -1658,21 +1921,41 @@ const ModeratorPanel = () => {
               marginBottom: '1.25rem',
               lineHeight: 1.4
             }}>
-              💡 <strong>¿Cómo usar IP Webcam en tu teléfono?</strong>
-              <ol style={{ margin: '0.35rem 0 0 1.25rem', padding: 0 }}>
-                <li>Abre la app <em>IP Webcam</em> en tu Android y toca <strong>Start server</strong> al fondo.</li>
-                <li>Copia la dirección IPv4 que aparece en la pantalla (ejemplo: <code>192.168.1.50:8080</code>).</li>
-                <li>Pégala aquí abajo y pulsa <strong>Probar y Conectar</strong>.</li>
-              </ol>
+              💡 <strong>Cámaras Wi-Fi Soportadas:</strong>
+              <ul style={{ margin: '0.35rem 0 0 1.25rem', padding: 0 }}>
+                <li><strong>Cámaras Robóticas PTZ 360°:</strong> Domos motorizados con control de giro, inclinación y auto-patrullaje.</li>
+                <li><strong>Cámaras Fijas Wi-Fi:</strong> Cámaras CCTV de seguridad con zoom digital.</li>
+                <li><strong>Teléfonos con IP Webcam:</strong> Utiliza cualquier Android como cámara de vigilancia táctica.</li>
+              </ul>
             </div>
 
             <form onSubmit={handleCreateCamera}>
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Tipo de Cámara / Perfil de Movimiento</label>
+                <select
+                  className="form-control"
+                  value={newCamForm.tipo}
+                  onChange={(e) => {
+                    const sel = e.target.value;
+                    let placeholderName = newCamForm.nombre;
+                    if (sel.includes('PTZ')) placeholderName = 'Cámara Robótica PTZ Wi-Fi 01';
+                    else if (sel.includes('Fija')) placeholderName = 'Cámara Fija Wi-Fi 01';
+                    else placeholderName = 'Cámara Móvil IP Webcam';
+                    setNewCamForm({ ...newCamForm, tipo: sel, nombre: placeholderName });
+                  }}
+                >
+                  <option value="Cámara IP Wi-Fi PTZ 360° (Robótica / Domo)">🤖 Cámara IP Wi-Fi PTZ 360° (Robótica / Domo Motorizado)</option>
+                  <option value="Cámara IP Wi-Fi Fija (CCTV Seguridad)">📹 Cámara IP Wi-Fi Fija (CCTV Seguridad)</option>
+                  <option value="Cámara Móvil IP Webcam (Android)">📱 Cámara Móvil IP Webcam (Android)</option>
+                </select>
+              </div>
+
               <div className="form-group" style={{ marginBottom: '1rem' }}>
                 <label className="form-label">Nombre Identificador de la Cámara</label>
                 <input
                   type="text"
                   className="form-control"
-                  placeholder="Ej. Cámara Móvil Patrulla 01"
+                  placeholder="Ej. Cámara Robótica Domo Norte"
                   value={newCamForm.nombre}
                   onChange={(e) => setNewCamForm({ ...newCamForm, nombre: e.target.value })}
                   required
@@ -1829,6 +2112,82 @@ const ModeratorPanel = () => {
                 borderRadius: '50%',
                 pointerEvents: 'none'
               }} />
+
+              {/* Consola Flotante de Movimiento PTZ 360 en Pantalla Completa (Solo para cámaras robóticas con PTZ) */}
+              {isPtzCapable(expandedCamera) && (
+                <div style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  background: 'rgba(15, 23, 42, 0.88)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '0.65rem 0.8rem',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.8)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  zIndex: 20
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%',
+                    fontSize: '0.72rem',
+                    fontWeight: '800',
+                    color: '#38bdf8',
+                    borderBottom: '1px solid rgba(255,255,255,0.1)',
+                    paddingBottom: '0.25rem',
+                    gap: '0.5rem'
+                  }}>
+                    <span>🕹️ MOVIMIENTO PTZ</span>
+                    <span style={{ fontSize: '0.65rem', color: '#a855f7', fontFamily: 'monospace' }}>
+                      {camControlsState[expandedCamera.id]?.pan || 0}° / {camControlsState[expandedCamera.id]?.tilt || 0}°
+                    </span>
+                  </div>
+
+                  {/* Cruceta Direccional */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 36px)', gap: '4px' }}>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_upleft')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: 'rgba(30,41,59,0.75)', border: '1px solid rgba(255,255,255,0.12)', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem' }} title="Arriba-Izquierda">↖️</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_up')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 'bold' }} title="Inclinar Arriba">⬆️</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_upright')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: 'rgba(30,41,59,0.75)', border: '1px solid rgba(255,255,255,0.12)', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem' }} title="Arriba-Derecha">↗️</button>
+
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_left')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 'bold' }} title="Girar Izquierda">⬅️</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_center')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: 'rgba(234,179,8,0.3)', border: '1px solid #eab308', color: '#fef08a', cursor: 'pointer', fontSize: '0.9rem' }} title="Centrar Posición">🎯</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_right')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 'bold' }} title="Girar Derecha">➡️</button>
+
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_downleft')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: 'rgba(30,41,59,0.75)', border: '1px solid rgba(255,255,255,0.12)', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem' }} title="Abajo-Izquierda">↙️</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_down')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: '#0284c7', border: '1px solid #38bdf8', color: '#fff', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 'bold' }} title="Inclinar Abajo">⬇️</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'ptz_downright')} style={{ width: '36px', height: '32px', borderRadius: '6px', background: 'rgba(30,41,59,0.75)', border: '1px solid rgba(255,255,255,0.12)', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.85rem' }} title="Abajo-Derecha">↘️</button>
+                  </div>
+
+                  {/* Zoom +/- y Auto-Patrullaje */}
+                  <div style={{ display: 'flex', gap: '4px', width: '100%', marginTop: '2px' }}>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'zoom_out')} style={{ flex: 1, padding: '0.2rem', borderRadius: '4px', background: 'rgba(30,41,59,0.75)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem' }} title="Alejar Zoom">➖</button>
+                    <button onClick={() => handleCameraControl(expandedCamera, 'zoom_in')} style={{ flex: 1, padding: '0.2rem', borderRadius: '4px', background: 'rgba(30,41,59,0.75)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem' }} title="Acercar Zoom">➕</button>
+                    <button
+                      onClick={() => handleCameraControl(expandedCamera, 'ptz_patrol')}
+                      style={{
+                        flex: 1.5,
+                        padding: '0.2rem 0.35rem',
+                        fontSize: '0.68rem',
+                        fontWeight: '800',
+                        borderRadius: '4px',
+                        background: camControlsState[expandedCamera.id]?.patrol ? 'rgba(34, 197, 94, 0.35)' : 'rgba(255,255,255,0.08)',
+                        border: camControlsState[expandedCamera.id]?.patrol ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.15)',
+                        color: camControlsState[expandedCamera.id]?.patrol ? '#4ade80' : '#cbd5e1',
+                        cursor: 'pointer'
+                      }}
+                      title="Auto-patrullaje continuo 360°"
+                    >
+                      {camControlsState[expandedCamera.id]?.patrol ? '🟢 360°' : '🔄 360°'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div style={{
                 position: 'absolute',

@@ -135,6 +135,128 @@ const controlCamera = async (req, res) => {
         await db.query('UPDATE camaras SET zoom = $1 WHERE id = $2', [safeZoom, id]);
         break;
 
+      case 'zoom_in': {
+        const currentZoom = parseInt(cam.zoom || 0);
+        const newZoom = Math.min(100, currentZoom + 10);
+        targetEndpoint = `${baseUrl}/ptz?zoom=${newZoom}`;
+        responseData.zoom = newZoom;
+        await db.query('UPDATE camaras SET zoom = $1 WHERE id = $2', [newZoom, id]);
+        break;
+      }
+
+      case 'zoom_out': {
+        const currentZoom = parseInt(cam.zoom || 0);
+        const newZoom = Math.max(0, currentZoom - 10);
+        targetEndpoint = `${baseUrl}/ptz?zoom=${newZoom}`;
+        responseData.zoom = newZoom;
+        await db.query('UPDATE camaras SET zoom = $1 WHERE id = $2', [newZoom, id]);
+        break;
+      }
+
+      // ================= CONTROLES PTZ (PAN - TILT - ZOOM) =================
+      case 'ptz_up': {
+        const currentTilt = parseInt(cam.tilt || 0);
+        const newTilt = Math.min(90, currentTilt + 15);
+        targetEndpoint = `${baseUrl}/ptz?move=up&step=15`;
+        responseData.tilt = newTilt;
+        responseData.pan = parseInt(cam.pan || 0);
+        await db.query('UPDATE camaras SET tilt = $1 WHERE id = $2', [newTilt, id]);
+        break;
+      }
+
+      case 'ptz_down': {
+        const currentTilt = parseInt(cam.tilt || 0);
+        const newTilt = Math.max(-90, currentTilt - 15);
+        targetEndpoint = `${baseUrl}/ptz?move=down&step=15`;
+        responseData.tilt = newTilt;
+        responseData.pan = parseInt(cam.pan || 0);
+        await db.query('UPDATE camaras SET tilt = $1 WHERE id = $2', [newTilt, id]);
+        break;
+      }
+
+      case 'ptz_left': {
+        const currentPan = parseInt(cam.pan || 0);
+        const newPan = Math.max(-180, currentPan - 15);
+        targetEndpoint = `${baseUrl}/ptz?move=left&step=15`;
+        responseData.pan = newPan;
+        responseData.tilt = parseInt(cam.tilt || 0);
+        await db.query('UPDATE camaras SET pan = $1 WHERE id = $2', [newPan, id]);
+        break;
+      }
+
+      case 'ptz_right': {
+        const currentPan = parseInt(cam.pan || 0);
+        const newPan = Math.min(180, currentPan + 15);
+        targetEndpoint = `${baseUrl}/ptz?move=right&step=15`;
+        responseData.pan = newPan;
+        responseData.tilt = parseInt(cam.tilt || 0);
+        await db.query('UPDATE camaras SET pan = $1 WHERE id = $2', [newPan, id]);
+        break;
+      }
+
+      case 'ptz_upleft': {
+        const newPan = Math.max(-180, parseInt(cam.pan || 0) - 15);
+        const newTilt = Math.min(90, parseInt(cam.tilt || 0) + 15);
+        targetEndpoint = `${baseUrl}/ptz?move=upleft`;
+        responseData.pan = newPan;
+        responseData.tilt = newTilt;
+        await db.query('UPDATE camaras SET pan = $1, tilt = $2 WHERE id = $3', [newPan, newTilt, id]);
+        break;
+      }
+
+      case 'ptz_upright': {
+        const newPan = Math.min(180, parseInt(cam.pan || 0) + 15);
+        const newTilt = Math.min(90, parseInt(cam.tilt || 0) + 15);
+        targetEndpoint = `${baseUrl}/ptz?move=upright`;
+        responseData.pan = newPan;
+        responseData.tilt = newTilt;
+        await db.query('UPDATE camaras SET pan = $1, tilt = $2 WHERE id = $3', [newPan, newTilt, id]);
+        break;
+      }
+
+      case 'ptz_downleft': {
+        const newPan = Math.max(-180, parseInt(cam.pan || 0) - 15);
+        const newTilt = Math.max(-90, parseInt(cam.tilt || 0) - 15);
+        targetEndpoint = `${baseUrl}/ptz?move=downleft`;
+        responseData.pan = newPan;
+        responseData.tilt = newTilt;
+        await db.query('UPDATE camaras SET pan = $1, tilt = $2 WHERE id = $3', [newPan, newTilt, id]);
+        break;
+      }
+
+      case 'ptz_downright': {
+        const newPan = Math.min(180, parseInt(cam.pan || 0) + 15);
+        const newTilt = Math.max(-90, parseInt(cam.tilt || 0) - 15);
+        targetEndpoint = `${baseUrl}/ptz?move=downright`;
+        responseData.pan = newPan;
+        responseData.tilt = newTilt;
+        await db.query('UPDATE camaras SET pan = $1, tilt = $2 WHERE id = $3', [newPan, newTilt, id]);
+        break;
+      }
+
+      case 'ptz_center': {
+        targetEndpoint = `${baseUrl}/ptz?move=home`;
+        responseData.pan = 0;
+        responseData.tilt = 0;
+        await db.query('UPDATE camaras SET pan = $1, tilt = $2 WHERE id = $3', [0, 0, id]);
+        break;
+      }
+
+      case 'ptz_patrol': {
+        const newPatrol = !Boolean(cam.patrullaje_activo);
+        targetEndpoint = `${baseUrl}/ptz?patrol=${newPatrol ? 'on' : 'off'}`;
+        responseData.patrullaje_activo = newPatrol;
+        responseData.message = newPatrol ? 'Auto-patrullaje 360° activado.' : 'Auto-patrullaje detenido.';
+        await db.query('UPDATE camaras SET patrullaje_activo = $1 WHERE id = $2', [newPatrol, id]);
+        break;
+      }
+
+      case 'ptz_stop': {
+        targetEndpoint = `${baseUrl}/ptz?move=stop`;
+        responseData.stopped = true;
+        break;
+      }
+
       case 'focus':
         targetEndpoint = `${baseUrl}/focus`;
         responseData.focused = true;
@@ -231,6 +353,41 @@ const proxySnapshot = async (req, res) => {
       return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address || 'Sin IP');
     }
 
+    // Soporte para cámaras RTSP (YuiCam / AJCloud)
+    if (snapshotUrl.startsWith('rtsp://') || (cam.stream_url && cam.stream_url.startsWith('rtsp://'))) {
+      const snapCache = path.join(__dirname, '../../uploads/latest_yuicam_snap.jpg');
+      if (fs.existsSync(snapCache)) {
+        try {
+          const stat = fs.statSync(snapCache);
+          if (Date.now() - stat.mtimeMs < 8000) {
+            res.set('Content-Type', 'image/jpeg');
+            res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+            return res.sendFile(snapCache);
+          }
+        } catch (e) {}
+      }
+
+      const { execFile } = require('child_process');
+      const snapScript = path.join(__dirname, '../../scripts/rtsp_snapshot.py');
+      const targetRtsp = snapshotUrl.startsWith('rtsp://') ? snapshotUrl : cam.stream_url;
+      const tempSnap = path.join(__dirname, `../../uploads/snap_cam_${id}_${Date.now()}.jpg`);
+
+      return execFile('python', [snapScript, targetRtsp, tempSnap], { timeout: 8000 }, (err) => {
+        if (err || !fs.existsSync(tempSnap)) {
+          return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+        }
+        try {
+          const buffer = fs.readFileSync(tempSnap);
+          fs.unlinkSync(tempSnap);
+          res.set('Content-Type', 'image/jpeg');
+          res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+          return res.send(buffer);
+        } catch (readErr) {
+          return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+        }
+      });
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2200);
 
@@ -269,10 +426,40 @@ const proxyStream = async (req, res) => {
     }
 
     const cam = camRes.rows[0];
-    const streamUrl = cam.stream_url || (cam.base_url ? `${cam.base_url}/video` : null);
+    const streamUrl = cam.stream_url || (cam.base_url ? (cam.base_url.startsWith('rtsp') ? `${cam.base_url}/live/ch1` : `${cam.base_url}/video`) : null);
 
     if (!streamUrl) {
       return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address || 'Sin IP');
+    }
+
+    // Soporte para cámaras RTSP (YuiCam / AJCloud)
+    if (streamUrl.startsWith('rtsp://')) {
+      const { spawn } = require('child_process');
+      const streamerScript = path.join(__dirname, '../../scripts/rtsp_streamer.py');
+      const child = spawn('python', [streamerScript, streamUrl, '15', '65']);
+
+      res.writeHead(200, {
+        'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Connection': 'close',
+        'Pragma': 'no-cache'
+      });
+
+      child.stdout.pipe(res);
+
+      child.on('error', (err) => {
+        console.warn('[RTSP Streamer] Error:', err.message);
+        if (!res.headersSent) {
+          sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+        }
+      });
+
+      req.on('close', () => {
+        try {
+          child.kill();
+        } catch (e) {}
+      });
+      return;
     }
 
     const httpModule = streamUrl.startsWith('https') ? require('https') : require('http');
@@ -350,6 +537,48 @@ const pingCamera = async (req, res) => {
 
     if (!baseUrl) {
       return res.status(400).json({ online: false, error: 'No tiene IP configurada.' });
+    }
+
+    // Ping para cámaras RTSP (YuiCam)
+    if (baseUrl.startsWith('rtsp://') || (cam.stream_url && cam.stream_url.startsWith('rtsp://'))) {
+      const net = require('net');
+      const cleanHost = (cam.ip_address || '192.168.1.74').replace(/^https?:\/\//, '').replace(/^rtsp:\/\//, '').split(':')[0];
+      const startTime = Date.now();
+      const socket = new net.Socket();
+      socket.setTimeout(2500);
+
+      socket.on('connect', () => {
+        const latencyMs = Date.now() - startTime;
+        socket.destroy();
+        return res.status(200).json({
+          online: true,
+          latencyMs,
+          ip: cam.ip_address,
+          details: 'YuiCam RTSP Stream Activo (1080p/360p)',
+          message: `✓ Conexión en vivo con la cámara YuiCam Wi-Fi (${latencyMs}ms).`
+        });
+      });
+
+      socket.on('timeout', () => {
+        socket.destroy();
+        return res.status(200).json({
+          online: false,
+          ip: cam.ip_address,
+          message: `Tiempo de espera agotado al conectar con ${cam.ip_address} (puerto RTSP 554).`
+        });
+      });
+
+      socket.on('error', (err) => {
+        socket.destroy();
+        return res.status(200).json({
+          online: false,
+          ip: cam.ip_address,
+          message: `No se pudo conectar al puerto de la cámara: ${err.message}`
+        });
+      });
+
+      socket.connect(554, cleanHost);
+      return;
     }
 
     const startTime = Date.now();
