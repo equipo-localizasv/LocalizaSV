@@ -256,6 +256,63 @@ const proxySnapshot = async (req, res) => {
 };
 
 /**
+ * Proxy directo de video en vivo (MJPEG Stream)
+ * Evita bloqueos CORS o Private Network Access (PNA) del navegador
+ * GET /api/camaras/:id/stream
+ */
+const proxyStream = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const camRes = await db.query('SELECT * FROM camaras WHERE id = $1', [id]);
+    if (!camRes.rows || camRes.rows.length === 0) {
+      return res.status(404).send('Cámara no encontrada.');
+    }
+
+    const cam = camRes.rows[0];
+    const streamUrl = cam.stream_url || (cam.base_url ? `${cam.base_url}/video` : null);
+
+    if (!streamUrl) {
+      return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address || 'Sin IP');
+    }
+
+    const httpModule = streamUrl.startsWith('https') ? require('https') : require('http');
+    const proxyReq = httpModule.get(streamUrl, { timeout: 5000 }, (camStream) => {
+      if (camStream.statusCode !== 200) {
+        return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+      }
+      res.writeHead(200, {
+        'Content-Type': camStream.headers['content-type'] || 'multipart/x-mixed-replace; boundary=--video boundary--',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Connection': 'close',
+        'Pragma': 'no-cache'
+      });
+      camStream.pipe(res);
+    });
+
+    proxyReq.on('timeout', () => {
+      proxyReq.destroy();
+      if (!res.headersSent) {
+        sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+      }
+    });
+
+    proxyReq.on('error', () => {
+      if (!res.headersSent) {
+        sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
+      }
+    });
+
+    req.on('close', () => {
+      proxyReq.destroy();
+    });
+  } catch (err) {
+    if (!res.headersSent) {
+      sendOfflinePlaceholder(res, 'Cámara', '192.168.1.X');
+    }
+  }
+};
+
+/**
  * Genera un marco táctico SVG para cámaras fuera de línea
  */
 const sendOfflinePlaceholder = (res, nombre, ip) => {
@@ -447,6 +504,7 @@ module.exports = {
   createCamera,
   controlCamera,
   proxySnapshot,
+  proxyStream,
   pingCamera,
   updateCamera,
   toggleSurveillance,

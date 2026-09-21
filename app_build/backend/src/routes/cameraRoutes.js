@@ -10,6 +10,7 @@ router.post('/', cameraController.createCamera);
 router.put('/:id', cameraController.updateCamera);
 router.delete('/:id', cameraController.deleteCamera);
 router.get('/:id/ping', cameraController.pingCamera);
+router.get('/:id/stream', cameraController.proxyStream);
 router.post('/:id/control', cameraController.controlCamera);
 router.get('/:id/snapshot', cameraController.proxySnapshot);
 router.post('/:id/autovigilancia', cameraController.toggleSurveillance);
