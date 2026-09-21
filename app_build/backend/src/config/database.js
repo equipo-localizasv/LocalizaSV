@@ -11,7 +11,7 @@ const poolConfig = {
   database: process.env.DB_NAME || 'localizasv',
   password: process.env.DB_PASSWORD || 'postgres',
   port: parseInt(process.env.DB_PORT || '5432'),
-  connectionTimeoutMillis: 2000 // Quick timeout to fallback fast if database is offline
+  connectionTimeoutMillis: 5000
 };
 
 if (isProduction) {
@@ -50,6 +50,7 @@ const writeMockDb = (data) => {
 pool.connect((err, client, release) => {
   if (err) {
     console.warn('\x1b[33m%s\x1b[0m', '⚠️  ADVERTENCIA: No se pudo conectar a PostgreSQL.');
+    console.warn('\x1b[31m%s\x1b[0m', `👉 Detalle del error: ${err.message}`);
     console.warn('\x1b[33m%s\x1b[0m', '👉 Iniciando base de datos simulada en memoria/JSON para revisión local de la Fase 1.');
     console.warn('\x1b[33m%s\x1b[0m', `👉 Datos persistidos en: ${mockFilePath}`);
     useMockDb = true;

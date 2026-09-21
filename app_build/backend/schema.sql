@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS casos (
     telefono_contacto VARCHAR(15) NOT NULL,
     estado VARCHAR(50) DEFAULT 'Desaparecido' NOT NULL,
     foto_url VARCHAR(512) NOT NULL,
+    usuario_asignado_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
+    fecha_aceptacion TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -48,6 +50,8 @@ CREATE TABLE IF NOT EXISTS alertas (
     foto_evidencia_url VARCHAR(512),
     estado VARCHAR(50) DEFAULT 'pendiente' NOT NULL,
     id_estado_alerta INT REFERENCES estados_alerta(id) DEFAULT 1 NOT NULL,
+    tipo_origen VARCHAR(100) DEFAULT 'Sistema Autónomo',
+    ubicacion_nombre VARCHAR(255),
     moderador_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
     fecha_validacion TIMESTAMP,
     comentarios TEXT,
@@ -59,6 +63,27 @@ CREATE TABLE IF NOT EXISTS alertas (
 CREATE INDEX IF NOT EXISTS idx_alertas_caso_id ON alertas(caso_id);
 CREATE INDEX IF NOT EXISTS idx_alertas_id_estado_alerta ON alertas(id_estado_alerta);
 CREATE INDEX IF NOT EXISTS idx_alertas_fecha_deteccion ON alertas(fecha_deteccion DESC);
+
+-- Tabla para cámaras de videovigilancia y streaming IP
+CREATE TABLE IF NOT EXISTS camaras (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    ubicacion VARCHAR(512) DEFAULT 'San Salvador, El Salvador' NOT NULL,
+    lat DECIMAL(10, 8) DEFAULT 13.6929,
+    lng DECIMAL(11, 8) DEFAULT -89.2182,
+    stream_url VARCHAR(512),
+    snapshot_url VARCHAR(512),
+    base_url VARCHAR(512),
+    ip_address VARCHAR(100),
+    tipo VARCHAR(100) DEFAULT 'Cámara Móvil IP Webcam',
+    resolucion VARCHAR(50) DEFAULT '1080p FHD',
+    fps INT DEFAULT 30,
+    linterna BOOLEAN DEFAULT FALSE,
+    zoom INT DEFAULT 0,
+    estado VARCHAR(50) DEFAULT 'activa',
+    ultima_actividad TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Tabla para almacenar tokens de dispositivos móviles para notificaciones push
 CREATE TABLE IF NOT EXISTS tokens_fcm (
