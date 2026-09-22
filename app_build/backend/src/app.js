@@ -24,9 +24,10 @@ app.use(helmet({
   crossOriginResourcePolicy: false // Allows serving static uploaded images across origins
 }));
 app.use(cors({
-  origin: '*', // Open to local client requests
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+    origin: ['https://localizasv.dpdns.org', 'http://localhost:5173'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
