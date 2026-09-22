@@ -21,39 +21,43 @@ const PORT = process.env.PORT || 3001;
 
 // Global Middlewares
 app.use(helmet({
-  crossOriginResourcePolicy: false // Allows serving static uploaded images across origins
+    crossOriginResourcePolicy: false // Permite servir imágenes estáticas entre orígenes
 }));
+
+// Configuración robusta de CORS para aceptar tu dominio de Netlify y desarrollo local
 app.use(cors({
-    origin: ['https://localizasv.dpdns.org', 'http://localhost:5173'],
+    origin: [
+        'https://localizasv.dpdns.org', 
+        'https://www.localizasv.dpdns.org', 
+        'http://localhost:5173',
+        'http://localhost:3000'
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
+
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files directory for uploaded images
+// Directorio de archivos estáticos para imágenes subidas
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Routes
+// Routes (El prefijo /api/auth se define aquí)
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
-app.use('/api/casos', caseRoutes); // Soporte bilingüe / según especificación del plan maestro
+app.use('/api/casos', caseRoutes); // Soporte bilingüe
 app.use('/api/detecciones', detectionRoutes);
 app.use('/api/alertas', alertRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/camaras', cameraRoutes);
 app.use('/api/avistamientos', sightingRoutes);
-app.use('/api/biometria', biometriaRoutes);
 
-
-
-// Base route for API status check
+// Ruta de estado base de la API
 app.get('/', (req, res) => {
-  res.json({ message: 'LocalizaSV API running with WebSocket support' });
+    res.json({ message: 'LocalizaSV API running with WebSocket support' });
 });
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('API Error:', err.message || err);
