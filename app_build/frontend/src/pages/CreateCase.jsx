@@ -32,7 +32,13 @@ const CreateCase = () => {
     departamento: 'San Salvador',
     ubicacion_desaparicion: '',
     descripcion: '',
-    telefono_contacto: ''
+    telefono_contacto: '',
+    vestimenta: '',
+    senas_particulares: '',
+    estatura_cm: '',
+    complexion: 'Media',
+    condicion_medica: '',
+    lugar_frecuente: ''
   });
 
   const [foto, setFoto] = useState(null);
@@ -232,6 +238,13 @@ const CreateCase = () => {
       formData.append('descripcion', descripcion);
       formData.append('telefono_contacto', telefono_contacto);
       formData.append('foto', foto);
+
+      if (form.vestimenta) formData.append('vestimenta', form.vestimenta);
+      if (form.senas_particulares) formData.append('senas_particulares', form.senas_particulares);
+      if (form.estatura_cm) formData.append('estatura_cm', form.estatura_cm);
+      if (form.complexion) formData.append('complexion', form.complexion);
+      if (form.condicion_medica) formData.append('condicion_medica', form.condicion_medica);
+      if (form.lugar_frecuente) formData.append('lugar_frecuente', form.lugar_frecuente);
 
       if (biometrics) {
         formData.append('biometria_insightface', JSON.stringify(biometrics));
@@ -769,16 +782,155 @@ const CreateCase = () => {
         </div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="descripcion">Descripción física y señas particulares</label>
+          <label className="form-label" htmlFor="descripcion">Descripción física general y contexto</label>
           <textarea
             id="descripcion"
             name="descripcion"
             className="form-control"
-            placeholder="Describa la ropa que vestía, estatura, color de cabello, tatuajes o marcas distintivas..."
+            placeholder="Describa cómo fue visto por última vez, estado emocional o cualquier contexto relevante..."
             value={form.descripcion}
             onChange={handleInputChange}
             disabled={loading}
+            rows="3"
           />
+        </div>
+
+        {/* ================= EXPEDIENTE FORENSE ENRIQUECIDO ================= */}
+        <div style={{
+          marginTop: '1.75rem',
+          padding: '1.25rem',
+          background: 'rgba(15, 23, 42, 0.7)',
+          border: '1px solid rgba(0, 240, 255, 0.25)',
+          borderRadius: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+            <span style={{ fontSize: '1.4rem' }}>📋</span>
+            <div>
+              <h4 style={{ margin: 0, color: '#38bdf8', fontSize: '1.05rem', fontWeight: 700 }}>
+                Datos de Expediente Forense Detallado
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
+                Permite a los moderadores y cámaras de videovigilancia identificar con mayor precisión a la persona
+              </p>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label className="form-label" htmlFor="vestimenta">Vestimenta al momento de la desaparición</label>
+            <input
+              id="vestimenta"
+              name="vestimenta"
+              type="text"
+              className="form-control"
+              placeholder="Ej. Camiseta azul marino, jeans oscuros desgastados, zapatillas blancas Nike"
+              value={form.vestimenta}
+              onChange={handleInputChange}
+              disabled={loading}
+            />
+            {/* Quick chips vestimenta */}
+            <div style={{ marginTop: '0.4rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              {['Camisa azul', 'Jeans negros', 'Vestido estampado', 'Gorra negra', 'Tenis deportivos', 'Mochila negra'].map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setForm(prev => ({
+                    ...prev,
+                    vestimenta: prev.vestimenta ? `${prev.vestimenta}, ${item}` : item
+                  }))}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    color: '#93c5fd',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    fontSize: '0.72rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  + {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label className="form-label" htmlFor="senas_particulares">Señas particulares, tatuajes o cicatrices</label>
+            <input
+              id="senas_particulares"
+              name="senas_particulares"
+              type="text"
+              className="form-control"
+              placeholder="Ej. Tatuaje de cruz en antebrazo derecho, lunar pronunciado en mejilla izquierda, cicatriz quirúrgica"
+              value={form.senas_particulares}
+              onChange={handleInputChange}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="meta-grid" style={{ marginBottom: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="estatura_cm">Estatura Aproximada (cm)</label>
+              <input
+                id="estatura_cm"
+                name="estatura_cm"
+                type="number"
+                min="40"
+                max="230"
+                className="form-control"
+                placeholder="Ej. 170"
+                value={form.estatura_cm}
+                onChange={handleInputChange}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="complexion">Complexión Corporal</label>
+              <select
+                id="complexion"
+                name="complexion"
+                className="form-control"
+                value={form.complexion}
+                onChange={handleInputChange}
+                disabled={loading}
+              >
+                <option value="Delgada">Delgada</option>
+                <option value="Media">Media</option>
+                <option value="Atlética">Atlética</option>
+                <option value="Robusta">Robusta</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="meta-grid">
+            <div className="form-group">
+              <label className="form-label" htmlFor="condicion_medica">Condición médica / Medicación crítica</label>
+              <input
+                id="condicion_medica"
+                name="condicion_medica"
+                type="text"
+                className="form-control"
+                placeholder="Ej. Diabetes tipo 2 (requiere insulina), Alzheimer, Ninguna"
+                value={form.condicion_medica}
+                onChange={handleInputChange}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="lugar_frecuente">Rutas o lugares habituales</label>
+              <input
+                id="lugar_frecuente"
+                name="lugar_frecuente"
+                type="text"
+                className="form-control"
+                placeholder="Ej. Parque Cuscatlán, terminal de buses ruta 101-B"
+                value={form.lugar_frecuente}
+                onChange={handleInputChange}
+                disabled={loading}
+              />
+            </div>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>

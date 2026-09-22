@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import api from './services/api';
 import socketService from './services/socket';
 import Navbar from './components/Navbar';
+import LiveTelemetryTicker from './components/LiveTelemetryTicker';
+import Footer from './components/Footer';
 import ToastContainer from './components/ToastContainer';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -146,6 +148,7 @@ const App = () => {
       <Router>
         <div className="app-container">
           <Navbar />
+          <LiveTelemetryTicker />
           <div className="content-wrap">
             <Routes>
               {/* Ruta Principal: Redirige automáticamente al interfaz del rol */}
@@ -216,6 +219,9 @@ const App = () => {
             </Routes>
 
           </div>
+          {/* Pie de página institucional y mapa SVG */}
+          <Footer />
+
           {/* Notificaciones flotantes Toast en tiempo real */}
           <ToastContainer toasts={toasts} onDismiss={removeToast} />
         </div>

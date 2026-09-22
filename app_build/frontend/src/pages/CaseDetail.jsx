@@ -5,6 +5,7 @@ import { AuthContext } from '../App';
 import ReportSightingModal from '../components/ReportSightingModal';
 import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
 import AgeProgressionModal from '../components/AgeProgressionModal';
+import CaseDossierModal from '../components/CaseDossierModal';
 
 const CaseDetail = () => {
   const { id } = useParams();
@@ -18,6 +19,7 @@ const CaseDetail = () => {
   const [sightingModalOpen, setSightingModalOpen] = useState(false);
   const [flyerModalOpen, setFlyerModalOpen] = useState(false);
   const [ageProgressionOpen, setAgeProgressionOpen] = useState(false);
+  const [dossierModalOpen, setDossierModalOpen] = useState(false);
 
 
   const fetchCaseDetail = async () => {
@@ -226,8 +228,33 @@ const CaseDetail = () => {
             {/* Herramientas de Difusión Solidaria */}
             <div className="glass-panel" style={{ marginTop: '1.25rem', padding: '1rem', textAlign: 'center' }}>
               <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '700', marginBottom: '0.75rem' }}>
-                Difusión Comunitaria
+                Difusión & Operativo Forense
               </div>
+
+              {/* Botón Principal: Expediente Forense y Capturas de Cámaras */}
+              <button
+                onClick={() => setDossierModalOpen(true)}
+                className="btn w-100"
+                style={{
+                  marginBottom: '0.65rem',
+                  padding: '0.75rem',
+                  fontSize: '0.92rem',
+                  fontWeight: '800',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.25), rgba(99, 102, 241, 0.25))',
+                  border: '1px solid #38bdf8',
+                  color: '#38bdf8',
+                  borderRadius: '8px',
+                  boxShadow: '0 0 15px rgba(56, 189, 248, 0.2)'
+                }}
+              >
+                <span>📂</span>
+                <span>Ver Expediente Forense & Capturas CCTV</span>
+              </button>
+
               <button
                 onClick={() => setFlyerModalOpen(true)}
                 className="btn btn-danger w-100"
@@ -457,6 +484,68 @@ const CaseDetail = () => {
               </div>
             </div>
 
+            {/* Sección de Datos de Expediente Forense Detallado */}
+            {(caso.vestimenta || caso.senas_particulares || caso.estatura_cm || caso.complexion || caso.condicion_medica || caso.lugar_frecuente) && (
+              <div className="detail-section" style={{
+                background: 'rgba(15, 23, 42, 0.65)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                borderRadius: '10px',
+                padding: '1.25rem',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>🔬</span>
+                    <span style={{ fontWeight: 800, color: '#38bdf8', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Ficha Forense Avanzada
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setDossierModalOpen(true)}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', color: '#00f0ff', borderColor: '#00f0ff' }}
+                  >
+                    📂 Ver Capturas y Heatmap
+                  </button>
+                </div>
+
+                <div className="meta-grid" style={{ gap: '0.85rem' }}>
+                  {caso.vestimenta && (
+                    <div>
+                      <div className="detail-label">👕 Vestimenta Reportada</div>
+                      <div className="detail-value" style={{ color: '#e2e8f0' }}>{caso.vestimenta}</div>
+                    </div>
+                  )}
+                  {caso.senas_particulares && (
+                    <div>
+                      <div className="detail-label">🔍 Señas Particulares / Tatuajes</div>
+                      <div className="detail-value" style={{ color: '#e2e8f0' }}>{caso.senas_particulares}</div>
+                    </div>
+                  )}
+                  {caso.estatura_cm && (
+                    <div>
+                      <div className="detail-label">📏 Estatura / Complexión</div>
+                      <div className="detail-value" style={{ color: '#e2e8f0' }}>
+                        {caso.estatura_cm} cm {caso.complexion ? `• ${caso.complexion}` : ''}
+                      </div>
+                    </div>
+                  )}
+                  {caso.condicion_medica && (
+                    <div>
+                      <div className="detail-label">⚕️ Condición Médica</div>
+                      <div className="detail-value" style={{ color: '#f87171' }}>{caso.condicion_medica}</div>
+                    </div>
+                  )}
+                  {caso.lugar_frecuente && (
+                    <div>
+                      <div className="detail-label">📍 Rutas Habituales</div>
+                      <div className="detail-value" style={{ color: '#e2e8f0' }}>{caso.lugar_frecuente}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="detail-section">
               <div className="detail-label">Último lugar conocido</div>
               <div className="detail-value" style={{ fontSize: '1.05rem', color: '#38bdf8' }}>
@@ -513,6 +602,12 @@ const CaseDetail = () => {
         isOpen={ageProgressionOpen}
         caso={caso}
         onClose={() => setAgeProgressionOpen(false)}
+      />
+
+      <CaseDossierModal
+        isOpen={dossierModalOpen}
+        caseId={id}
+        onClose={() => setDossierModalOpen(false)}
       />
     </div>
   );

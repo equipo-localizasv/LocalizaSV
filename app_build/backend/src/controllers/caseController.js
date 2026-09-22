@@ -9,7 +9,13 @@ const createCase = async (req, res) => {
     fecha_desaparicion,
     ubicacion_desaparicion,
     descripcion,
-    telefono_contacto
+    telefono_contacto,
+    vestimenta,
+    senas_particulares,
+    estatura_cm,
+    complexion,
+    condicion_medica,
+    lugar_frecuente
   } = req.body;
 
   if (!req.file) {
@@ -27,7 +33,7 @@ const createCase = async (req, res) => {
     !descripcion ||
     !telefono_contacto
   ) {
-    return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
+    return res.status(400).json({ error: 'Todos los campos básicos son obligatorios.' });
   }
 
   try {
@@ -42,8 +48,9 @@ const createCase = async (req, res) => {
     const result = await db.query(
       `INSERT INTO casos (
         usuario_id, nombre_desaparecido, edad, genero, fecha_desaparicion,
-        ubicacion_desaparicion, descripcion, telefono_contacto, foto_url, biometria_insightface
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ubicacion_desaparicion, descripcion, telefono_contacto, foto_url, biometria_insightface,
+        vestimenta, senas_particulares, estatura_cm, complexion, condicion_medica, lugar_frecuente
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         req.user.id,
@@ -55,7 +62,13 @@ const createCase = async (req, res) => {
         descripcion,
         telefono_contacto,
         foto_url,
-        biometria ? biometria : null
+        biometria ? biometria : null,
+        vestimenta || null,
+        senas_particulares || null,
+        estatura_cm ? parseInt(estatura_cm) : null,
+        complexion || null,
+        condicion_medica || null,
+        lugar_frecuente || null
       ]
     );
 
@@ -261,12 +274,112 @@ const getRescueStatus = async (req, res) => {
   }
 };
 
+/**
+ * Tarea: Expediente Forense Integral (Dossier con Galería de Evidencias, Heatmap GPS y Cronología)
+ * GET /api/cases/:id/dossier
+ */
+const getCaseDossier = async (req, res) => {
+  const { id } = req.params;
+  const caseId = parseInt(id);
+
+  try {
+    const caseResult = await db.query(
+      `SELECT c.*, 
+              u.nombre as creador_nombre, 
+              u.email as creador_email, 
+              u.telefono as creador_telefono,
+              u.selfie_url as creador_selfie_url
+       FROM casos c
+       JOIN usuarios u ON c.usuario_id = u.id
+       WHERE c.id = $1`,
+      [caseId]
+    );
+
+    if (caseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'El expediente solicitado no existe.' });
+    }
+
+    const caso = caseResult.rows[0];
+
+    // Consultar todas las alertas, detecciones de cámaras y avistamientos comunitarios
+    const alertsResult = await db.query(
+      `SELECT a.*, LOWER(COALESCE(ea.nombre, a.estado, 'pendiente')) as estado
+       FROM alertas a
+       LEFT JOIN estados_alerta ea ON a.id_estado_alerta = ea.id
+       WHERE a.caso_id = $1
+       ORDER BY COALESCE(a.fecha_deteccion, a.created_at) DESC`,
+      [caseId]
+    );
+
+    const alerts = alertsResult.rows || [];
+
+    // Extraer puntos GPS para el mapa de calor específico de este caso
+    const heatmapPoints = alerts
+      .map((a) => {
+        const lat = parseFloat(a.ubicacion_lat || a.lat);
+        const lng = parseFloat(a.ubicacion_lng || a.lng);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        const confidence = parseFloat(a.porcentaje_confianza || 75);
+        return [lat, lng, confidence / 100];
+      })
+      .filter(Boolean);
+
+    // Timeline cronológico forense
+    const timeline = [];
+    timeline.push({
+      tipo: 'registro_caso',
+      titulo: 'Expediente Inicial Registrado',
+      descripcion: `Reportado por ${caso.creador_nombre}. Último lugar de contacto: ${caso.ubicacion_desaparicion}.`,
+      fecha: caso.created_at || caso.fecha_desaparicion,
+      icono: '📋'
+    });
+
+    alerts.forEach((a) => {
+      const fecha = a.fecha_deteccion || a.created_at;
+      const isCamera = a.tipo_origen === 'Cámara IP' || a.tipo_origen === 'Camara IP' || a.tipo_origen === 'CCTV';
+      timeline.push({
+        tipo: isCamera ? 'deteccion_camara' : 'avistamiento_ciudadano',
+        titulo: isCamera ? `Detección Facial Automática (${a.porcentaje_confianza || 80}%)` : 'Avistamiento Reportado por Ciudadano',
+        descripcion: a.ubicacion_nombre || a.ubicacion_texto || 'Ubicación registrada por sensor',
+        fecha,
+        alerta_id: a.id,
+        foto_evidencia_url: a.foto_evidencia_url,
+        estado: a.estado,
+        coordenadas: [a.ubicacion_lat, a.ubicacion_lng],
+        icono: isCamera ? '📹' : '👤'
+      });
+    });
+
+    if (caso.estado === 'Encontrado') {
+      timeline.unshift({
+        tipo: 'caso_resuelto',
+        titulo: 'Persona Localizada con Éxito',
+        descripcion: 'El caso fue resuelto satisfactoriamente y la persona ha sido resguardada.',
+        fecha: caso.updated_at || new Date().toISOString(),
+        icono: '✅'
+      });
+    }
+
+    return res.status(200).json({
+      caso,
+      alertas: alerts,
+      heatmapPoints,
+      totalEvidencias: alerts.length,
+      timeline
+    });
+  } catch (error) {
+    console.error('Error al obtener expediente forense (dossier):', error);
+    return res.status(500).json({ error: 'Error al cargar el expediente forense del caso.' });
+  }
+};
+
 module.exports = {
   createCase,
   getCases,
   getCaseById,
   updateCaseStatus,
   acceptSearch,
-  getRescueStatus
+  getRescueStatus,
+  getCaseDossier
 };
 

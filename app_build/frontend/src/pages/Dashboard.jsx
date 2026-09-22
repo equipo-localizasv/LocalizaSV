@@ -8,6 +8,8 @@ import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
 import MapaAlertas from '../components/MapaAlertas';
 import ReversePhotoSearchModal from '../components/ReversePhotoSearchModal';
 import AgeProgressionModal from '../components/AgeProgressionModal';
+import HeroSection from '../components/HeroSection';
+import soundEffects from '../services/soundEffects';
 
 const DEPARTAMENTOS_SV = [
   'San Salvador',
@@ -161,6 +163,9 @@ const Dashboard = () => {
 
   return (
     <div className="animate-fade-in">
+      {/* Hero Section Cinematográfico Táctico C4I */}
+      <HeroSection onOpenReverseSearch={() => setReverseSearchOpen(true)} user={user} />
+
       {/* Top Cyber Amber Alert Pulsing Banner */}
       {cases.some(c => c.estado === 'Desaparecido') && (
         <div style={{
@@ -198,7 +203,10 @@ const Dashboard = () => {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
-              onClick={() => setReverseSearchOpen(true)}
+              onClick={() => {
+                soundEffects.playScanSound();
+                setReverseSearchOpen(true);
+              }}
               style={{
                 background: 'rgba(0, 240, 255, 0.15)',
                 border: '1px solid #00f0ff',
@@ -230,7 +238,10 @@ const Dashboard = () => {
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={() => setReverseSearchOpen(true)}
+            onClick={() => {
+              soundEffects.playScanSound();
+              setReverseSearchOpen(true);
+            }}
             className="btn"
             style={{
               display: 'flex',
@@ -250,6 +261,7 @@ const Dashboard = () => {
           </button>
           <button
             onClick={() => {
+              soundEffects.playClickSound();
               setSightingInitialCaseId(null);
               setSightingModalOpen(true);
             }}
@@ -269,11 +281,20 @@ const Dashboard = () => {
             <span>Reportar Avistamiento</span>
           </button>
           {user ? (
-            <Link to="/reportar" className="btn btn-primary" style={{ padding: '0.6rem 1.2rem', fontWeight: 600 }}>
+            <Link
+              to="/reportar"
+              onClick={() => soundEffects.playClickSound()}
+              className="btn btn-primary"
+              style={{ padding: '0.6rem 1.2rem', fontWeight: 600 }}
+            >
               ➕ Reportar Desaparición
             </Link>
           ) : (
-            <Link to="/login" className="btn btn-secondary">
+            <Link
+              to="/login"
+              onClick={() => soundEffects.playClickSound()}
+              className="btn btn-secondary"
+            >
               Iniciar sesión para reportar
             </Link>
           )}
@@ -283,9 +304,9 @@ const Dashboard = () => {
       {/* KPI Stats Bar */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: '1rem',
-        marginBottom: '1.75rem'
+        marginBottom: '2rem'
       }}>
         <div className="glass-panel card-interactive-lift" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{
@@ -303,11 +324,11 @@ const Dashboard = () => {
             🚨
           </div>
           <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#fff', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#f87171', lineHeight: 1.1 }}>
               {stats.activos}
             </div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Casos Activos
+              En Búsqueda Activa
             </div>
           </div>
         </div>
@@ -480,56 +501,74 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="filters-bar glass-panel" style={{ padding: '1rem', marginBottom: '2rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: '0.75rem', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
-          <div className="search-input-wrapper" style={{ flex: 1, minWidth: '200px' }}>
+      {/* Selector de Filtros y Modo de Vista */}
+      <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ flex: '1 1 260px', position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>🔍</span>
             <input
               type="text"
               className="form-control"
-              placeholder="Buscar por nombre o rasgos..."
+              placeholder="Buscar por nombre o lugar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: '2.5rem', width: '100%' }}
             />
           </div>
 
-          <select
-            className="form-control"
-            value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
-            style={{ width: 'auto', minWidth: '180px', background: 'rgba(30, 41, 59, 0.8)', color: '#fff' }}
-          >
-            <option value="">🇸🇻 Todos los Departamentos</option>
-            {DEPARTAMENTOS_SV.map((dept) => (
-              <option key={dept} value={dept}>{dept}</option>
-            ))}
-          </select>
-        </div>
+          <div style={{ flex: '0 1 200px' }}>
+            <select
+              className="form-control"
+              value={deptFilter}
+              onChange={(e) => {
+                soundEffects.playClickSound();
+                setDeptFilter(e.target.value);
+              }}
+            >
+              <option value="">Todos los Departamentos</option>
+              {DEPARTAMENTOS_SV.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(0,0,0,0.25)', padding: '0.25rem', borderRadius: '8px' }}>
+          {/* Filtros de Estado */}
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
             <button 
-              onClick={() => setStatusFilter('')} 
+              onClick={() => {
+                soundEffects.playClickSound();
+                setStatusFilter('');
+              }} 
               className={`btn ${statusFilter === '' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
             >
               Todos
             </button>
             <button 
-              onClick={() => setStatusFilter('Desaparecido')} 
+              onClick={() => {
+                soundEffects.playClickSound();
+                setStatusFilter('Desaparecido');
+              }} 
               className={`btn ${statusFilter === 'Desaparecido' ? 'btn-danger' : 'btn-secondary'}`}
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
             >
               Desaparecidos
             </button>
             <button 
-              onClick={() => setStatusFilter('En Proceso de Rescate')} 
+              onClick={() => {
+                soundEffects.playClickSound();
+                setStatusFilter('En Proceso de Rescate');
+              }} 
               className={`btn ${statusFilter === 'En Proceso de Rescate' ? 'btn-warning' : 'btn-secondary'}`}
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: statusFilter === 'En Proceso de Rescate' ? '#000' : 'inherit' }}
             >
               En Rescate
             </button>
             <button 
-              onClick={() => setStatusFilter('Encontrado')} 
+              onClick={() => {
+                soundEffects.playClickSound();
+                setStatusFilter('Encontrado');
+              }} 
               className={`btn ${statusFilter === 'Encontrado' ? 'btn-success' : 'btn-secondary'}`}
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
             >
@@ -540,7 +579,10 @@ const Dashboard = () => {
           {/* View Mode Toggle */}
           <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(14, 165, 233, 0.15)', padding: '0.25rem', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.3)' }}>
             <button
-              onClick={() => setViewMode('grid')}
+              onClick={() => {
+                soundEffects.playClickSound();
+                setViewMode('grid');
+              }}
               style={{
                 background: viewMode === 'grid' ? '#0ea5e9' : 'transparent',
                 color: '#fff',
@@ -555,7 +597,10 @@ const Dashboard = () => {
               🗂️ Tarjetas
             </button>
             <button
-              onClick={() => setViewMode('map')}
+              onClick={() => {
+                soundEffects.playClickSound();
+                setViewMode('map');
+              }}
               style={{
                 background: viewMode === 'map' ? '#0ea5e9' : 'transparent',
                 color: '#fff',
@@ -575,10 +620,21 @@ const Dashboard = () => {
 
       {error && <div className="auth-error text-center">{error}</div>}
 
+      {/* SKELETON LOADERS CON PULSO LUMINOSO */}
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid #0ea5e9', borderRadius: '50%', width: '30px', height: '30px', animation: 'spin 1s linear infinite' }} />
-          <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Buscando registros en la red nacional...</span>
+        <div className="cases-grid">
+          {[1, 2, 3, 4, 5, 6].map((sk) => (
+            <div key={sk} className="glass-panel" style={{ borderRadius: '14px', overflow: 'hidden', padding: '1rem' }}>
+              <div className="skeleton-box" style={{ width: '100%', height: '220px', borderRadius: '8px', marginBottom: '1rem' }} />
+              <div className="skeleton-box" style={{ width: '70%', height: '20px', borderRadius: '4px', marginBottom: '0.65rem' }} />
+              <div className="skeleton-box" style={{ width: '50%', height: '14px', borderRadius: '4px', marginBottom: '0.5rem' }} />
+              <div className="skeleton-box" style={{ width: '90%', height: '14px', borderRadius: '4px', marginBottom: '1rem' }} />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+              </div>
+            </div>
+          ))}
         </div>
       ) : viewMode === 'map' ? (
         <div className="glass-panel animate-fade-in" style={{ padding: '1.25rem', marginBottom: '2rem' }}>
@@ -609,9 +665,18 @@ const Dashboard = () => {
         </div>
       ) : (
         <div className="cases-grid">
-          {filteredCases.map((caso) => (
-            <div key={caso.id} className="case-card hud-panel corner-hud card-interactive-lift animate-fade-in">
-              <div className="case-card-img-wrapper" style={{ position: 'relative' }}>
+          {filteredCases.map((caso, index) => (
+            <div
+              key={caso.id}
+              className="case-card hud-panel corner-hud spotlight-card stagger-item"
+              style={{ animationDelay: `${index * 45}ms` }}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+                e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+              }}
+            >
+              <div className="case-card-img-wrapper laser-scan-container" style={{ position: 'relative' }}>
                 <img 
                   src={getImageUrl(caso.foto_url)} 
                   alt={caso.nombre_desaparecido} 
@@ -620,6 +685,19 @@ const Dashboard = () => {
                     e.target.src = 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=400&q=80';
                   }}
                 />
+
+                {/* Línea de escaneo láser forense en hover */}
+                <div className="laser-scanline" />
+
+                {/* Malla holográfica de landmarks biométricos */}
+                <div className="landmark-overlay">
+                  <div className="landmark-dot" style={{ top: '38%', left: '42%' }} title="Ojo Izquierdo" />
+                  <div className="landmark-dot" style={{ top: '38%', left: '58%' }} title="Ojo Derecho" />
+                  <div className="landmark-dot" style={{ top: '50%', left: '50%' }} title="Nariz" />
+                  <div className="landmark-dot" style={{ top: '65%', left: '44%' }} title="Comisura Izquierda" />
+                  <div className="landmark-dot" style={{ top: '65%', left: '56%' }} title="Comisura Derecha" />
+                </div>
+
                 <span className={`status-badge ${caso.estado === 'En Proceso de Rescate' ? 'warning' : caso.estado.toLowerCase()}`}>
                   {caso.estado}
                 </span>

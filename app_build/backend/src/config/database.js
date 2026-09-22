@@ -115,9 +115,22 @@ const mockQuery = (text, params = []) => {
   // 5. INSERT INTO casos
   if (normalizedText.includes('INSERT INTO casos')) {
     const [
-      usuario_id, nombre_desaparecido, edad, genero, fecha_desaparicion,
-      ubicacion_desaparicion, descripcion, telefono_contacto, foto_url,
-      biometria_insightface
+      usuario_id,
+      nombre_desaparecido,
+      edad,
+      genero,
+      fecha_desaparicion,
+      ubicacion_desaparicion,
+      descripcion,
+      telefono_contacto,
+      foto_url,
+      biometria_insightface,
+      vestimenta,
+      senas_particulares,
+      estatura_cm,
+      complexion,
+      condicion_medica,
+      lugar_frecuente
     ] = params;
     const nextId = db.casos.length > 0 ? Math.max(...db.casos.map(c => c.id)) + 1 : 1;
     const newCase = {
@@ -132,6 +145,12 @@ const mockQuery = (text, params = []) => {
       telefono_contacto,
       foto_url,
       biometria_insightface: biometria_insightface || null,
+      vestimenta: vestimenta || null,
+      senas_particulares: senas_particulares || null,
+      estatura_cm: estatura_cm ? parseInt(estatura_cm) : null,
+      complexion: complexion || null,
+      condicion_medica: condicion_medica || null,
+      lugar_frecuente: lugar_frecuente || null,
       estado: 'Desaparecido',
       created_at: new Date().toISOString()
     };
@@ -260,6 +279,19 @@ const mockQuery = (text, params = []) => {
   if (normalizedText.includes('FROM alertas WHERE id = $1')) {
     const [id] = params;
     const found = db.alertas.filter(a => a.id === parseInt(id));
+    return { rows: found };
+  }
+
+  // 10.55 SELECT FROM alertas WHERE caso_id = $1 (Dossier & Evidencias)
+  if (normalizedText.includes('FROM alertas') && normalizedText.includes('caso_id = $1')) {
+    const [caseId] = params;
+    const found = (db.alertas || [])
+      .filter(a => a.caso_id === parseInt(caseId))
+      .map(a => ({
+        ...a,
+        estado: a.estado || (a.id_estado_alerta === 1 ? 'pendiente' : (a.id_estado_alerta === 2 ? 'confirmado' : 'falso positivo'))
+      }));
+    found.sort((a, b) => new Date(b.fecha_deteccion || b.created_at) - new Date(a.fecha_deteccion || a.created_at));
     return { rows: found };
   }
 

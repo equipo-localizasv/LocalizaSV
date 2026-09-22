@@ -1079,5 +1079,181 @@ textarea.form-control {
   background: rgba(0, 240, 255, 0.55);
 }
 
+/* ================= THEME DEFINITIONS ================= */
+:root, [data-theme="c4i"] {
+  --bg-main: #030712;
+  --bg-surface: #0b1329;
+  --bg-card: rgba(15, 23, 42, 0.85);
+  --bg-card-hover: rgba(22, 33, 58, 0.95);
+  --primary: #00f0ff;
+  --primary-hover: #38bdf8;
+  --primary-glow: rgba(0, 240, 255, 0.35);
+  --accent-neon: #38bdf8;
+  --accent-purple: #a855f7;
+  --spotlight-color: rgba(0, 240, 255, 0.16);
+  --border-color: rgba(0, 240, 255, 0.18);
+  --border-hover: rgba(0, 240, 255, 0.55);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --hud-theme-badge: #00f0ff;
+}
 
+[data-theme="cyberpunk"] {
+  --bg-main: #070314;
+  --bg-surface: #12072b;
+  --bg-card: rgba(26, 11, 56, 0.85);
+  --bg-card-hover: rgba(38, 17, 82, 0.95);
+  --primary: #c084fc;
+  --primary-hover: #e879f9;
+  --primary-glow: rgba(192, 132, 252, 0.45);
+  --accent-neon: #00f0ff;
+  --accent-purple: #f43f5e;
+  --spotlight-color: rgba(192, 132, 252, 0.22);
+  --border-color: rgba(192, 132, 252, 0.25);
+  --border-hover: rgba(232, 121, 249, 0.65);
+  --text-primary: #ffffff;
+  --text-secondary: #d8b4fe;
+  --text-muted: #9333ea;
+  --hud-theme-badge: #c084fc;
+}
 
+[data-theme="tactical"] {
+  --bg-main: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-card: rgba(18, 18, 18, 0.95);
+  --bg-card-hover: rgba(28, 28, 28, 0.98);
+  --primary: #f59e0b;
+  --primary-hover: #fbbf24;
+  --primary-glow: rgba(245, 158, 11, 0.4);
+  --accent-neon: #ef4444;
+  --accent-purple: #eab308;
+  --spotlight-color: rgba(245, 158, 11, 0.2);
+  --border-color: rgba(245, 158, 11, 0.35);
+  --border-hover: rgba(245, 158, 11, 0.8);
+  --text-primary: #ffffff;
+  --text-secondary: #fef08a;
+  --text-muted: #a3a3a3;
+  --hud-theme-badge: #fbbf24;
+}
+
+/* ================= SPOTLIGHT CURSOR HOVER EFFECT ================= */
+.spotlight-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(350px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--spotlight-color, rgba(0, 240, 255, 0.16)), transparent 80%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+.spotlight-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-hover);
+  box-shadow: 0 16px 35px rgba(0, 0, 0, 0.7), 0 0 25px var(--primary-glow);
+}
+
+/* ================= ESCÁNER LÁSER FORENSE (PHOTO HOVER) ================= */
+.laser-scan-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.laser-scan-container .laser-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, var(--primary) 50%, transparent 100%);
+  box-shadow: 0 0 12px var(--primary), 0 0 24px var(--primary);
+  opacity: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.laser-scan-container:hover .laser-scanline {
+  animation: scanlineSweep 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes scanlineSweep {
+  0% { top: -5%; opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { top: 105%; opacity: 0; }
+}
+
+/* Landmarks biométricos holográficos */
+.landmark-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 2;
+}
+
+.laser-scan-container:hover .landmark-overlay {
+  opacity: 1;
+}
+
+.landmark-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00ff9d;
+  box-shadow: 0 0 8px #00ff9d;
+  transform: translate(-50%, -50%);
+  animation: landmarkPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes landmarkPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+  50% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; }
+}
+
+/* ================= SKELETON LOADERS CON PULSO LUMINOSO ================= */
+.skeleton-box {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(0, 240, 255, 0.09) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.8s infinite;
+  border-radius: 6px;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ================= STAGGERED ENTRANCE ANIMATION ================= */
+.stagger-item {
+  animation: staggerFadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+@keyframes staggerFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

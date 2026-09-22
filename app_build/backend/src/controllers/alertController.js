@@ -120,6 +120,20 @@ const updateAlertStatus = async (req, res) => {
         );
         const name = caseResult.rows[0] ? caseResult.rows[0].nombre_desaparecido : 'Desconocido';
         
+        // Emit tactical alerta_confirmada event for PNC Command Center real-time dispatch
+        if (typeof broadcast === 'function') {
+          broadcast('alerta_confirmada', {
+            alerta: updatedAlert,
+            caso_id: updatedAlert.caso_id,
+            nombre_desaparecido: name,
+            latitud: updatedAlert.latitud,
+            longitud: updatedAlert.longitud,
+            ubicacion: updatedAlert.ubicacion_texto || 'Cámara de Videovigilancia / Detección Confirmada',
+            nivel_confianza: updatedAlert.nivel_confianza,
+            timestamp: new Date().toISOString()
+          });
+        }
+
         // Fire and forget push notification async
         sendNotificationToAll(
           '¡Alerta de avistamiento confirmada!',

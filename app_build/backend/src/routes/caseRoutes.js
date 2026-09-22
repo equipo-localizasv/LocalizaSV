@@ -10,6 +10,9 @@ router.get('/', caseController.getCases);
 // Get single case details (public view)
 router.get('/:id', caseController.getCaseById);
 
+// Get complete forensic dossier (evidences gallery, heatmap, timeline)
+router.get('/:id/dossier', caseController.getCaseDossier);
+
 // Create a missing person report (protected, with photo upload)
 router.post('/', authMiddleware, upload.single('foto'), caseController.createCase);
 

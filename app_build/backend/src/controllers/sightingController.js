@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { broadcast } = require('../wsServer');
+const insightFaceService = require('../services/insightFaceService');
 
 /**
  * Registro de posible avistamiento comunitario por parte de un ciudadano
@@ -35,12 +36,26 @@ const reportSighting = async (req, res) => {
     }
 
     const nombreDesaparecido = caseResult.rows[0].nombre_desaparecido;
+    const caseFotoUrl = caseResult.rows[0].foto_url;
 
     // 2. Coordenadas por defecto (Centro de San Salvador) si no se especificaron
     const finalLat = ubicacion_lat ? parseFloat(ubicacion_lat) : 13.6989;
     const finalLng = ubicacion_lng ? parseFloat(ubicacion_lng) : -89.2155;
 
-    // 3. Crear alerta asociada al caso
+    // 3. Cotejo facial biométrico opcional mediante ArcFace 512-D
+    let similarityPercent = 85.0;
+    try {
+      if (caseFotoUrl && insightFaceService && typeof insightFaceService.compareFaces === 'function') {
+        const comp = await insightFaceService.compareFaces(caseFotoUrl, foto_evidencia_url);
+        if (comp && comp.similarity_percent) {
+          similarityPercent = parseFloat(comp.similarity_percent.toFixed(1));
+        }
+      }
+    } catch (bioErr) {
+      console.warn('[InsightFace] Cotejo biométrico de avistamiento:', bioErr.message);
+    }
+
+    // 4. Crear alerta asociada al caso (agregada al expediente)
     const insertResult = await db.query(
       `INSERT INTO alertas (
         caso_id, ubicacion_lat, ubicacion_lng, porcentaje_confianza, 
@@ -51,7 +66,7 @@ const reportSighting = async (req, res) => {
         parseInt(caso_id),
         finalLat,
         finalLng,
-        85.0, // Confianza inicial de reporte ciudadano
+        similarityPercent,
         foto_evidencia_url,
         1, // Estado Pendiente
         'Avistamiento Ciudadano',

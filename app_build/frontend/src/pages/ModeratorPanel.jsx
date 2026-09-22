@@ -4,6 +4,7 @@ import socketService from '../services/socket';
 import ActiveAlertsMap from '../components/ActiveAlertsMap';
 import BiometricVerificationModal from '../components/BiometricVerificationModal';
 import BiometricLab from '../components/BiometricLab';
+import CaseDossierModal from '../components/CaseDossierModal';
 
 const DEPARTAMENTOS_SV = [
   'San Salvador',
@@ -23,7 +24,7 @@ const DEPARTAMENTOS_SV = [
 ];
 
 const ModeratorPanel = () => {
-  const [activeTab, setActiveTab] = useState('camaras'); // 'camaras' | 'alertas' | 'biometria'
+  const [activeTab, setActiveTab] = useState('camaras'); // 'camaras' | 'casos' | 'alertas' | 'biometria'
   const [alerts, setAlerts] = useState([]);
   const [cameras, setCameras] = useState([]);
   const [cases, setCases] = useState([]);
@@ -34,6 +35,16 @@ const ModeratorPanel = () => {
   const [previewImage, setPreviewImage] = useState(null);
   const [expandedCamera, setExpandedCamera] = useState(null);
   const [biometricModalAlert, setBiometricModalAlert] = useState(null);
+  const [selectedDossierCaseId, setSelectedDossierCaseId] = useState(null);
+
+  // Filtros y búsqueda de Casos para moderadores
+  const [caseSearchTerm, setCaseSearchTerm] = useState('');
+  const [caseStatusFilter, setCaseStatusFilter] = useState('todos');
+  const [caseDeptFilter, setCaseDeptFilter] = useState('todos');
+
+  // Sentinel Autónomo de Reconexión de Cámaras
+  const [autoReconnectActive, setAutoReconnectActive] = useState(true);
+  const [reconnectSentinelCount, setReconnectSentinelCount] = useState(0);
 
   // Estados de control de cámara activa
   const [controllingCamId, setControllingCamId] = useState(null);
@@ -41,6 +52,11 @@ const ModeratorPanel = () => {
   const [camStatus, setCamStatus] = useState({}); // { [camId]: { online: boolean, latency_ms: number, error: string, testing: boolean } }
   const [camStreamErrors, setCamStreamErrors] = useState({}); // { [camId]: boolean }
   const [cameraSubTab, setCameraSubTab] = useState({}); // { [camId]: 'ptz' | 'tools' }
+
+  // Zoom Digital Directo en la Misma Cámara y Modo Enfoque en la Misma Pantalla (Sin pantallitas desordenadas abajo)
+  const [focusedCameraId, setFocusedCameraId] = useState(null);
+  const [digitalZoomState, setDigitalZoomState] = useState({}); // { [camId]: 1, 1.5, 2, 3 }
+  const [showCamControlsDrawer, setShowCamControlsDrawer] = useState({}); // { [camId]: boolean }
 
   // Modal para conectar nueva cámara (PTZ Wi-Fi / IP Webcam)
   const [showAddCamModal, setShowAddCamModal] = useState(false);
@@ -208,6 +224,48 @@ const ModeratorPanel = () => {
         }
       }));
     }
+  };
+
+  // Sentinel Autónomo de Reconexión de Cámaras:
+  // Revisa periódicamente las cámaras caídas o con error y las restablece automáticamente
+  useEffect(() => {
+    if (!autoReconnectActive || cameras.length === 0) return;
+
+    const sentinelInterval = setInterval(() => {
+      cameras.forEach(async (cam) => {
+        const isOffline = camStatus[cam.id]?.online === false;
+        const isFailing = Boolean(camStreamErrors[cam.id]);
+        if (isOffline || isFailing) {
+          try {
+            const res = await api.get(`/camaras/${cam.id}/ping`, { timeout: 3000 });
+            if (res.data?.online) {
+              setCamStatus((prev) => ({
+                ...prev,
+                [cam.id]: {
+                  online: true,
+                  latency_ms: res.data.latencyMs || res.data.latency_ms || 25,
+                  error: '',
+                  testing: false
+                }
+              }));
+              setCamStreamErrors((prev) => ({ ...prev, [cam.id]: false }));
+              setReconnectSentinelCount((c) => c + 1);
+            }
+          } catch (e) {
+            // Continúa monitoreando en el siguiente ciclo
+          }
+        }
+      });
+    }, 6500);
+
+    return () => clearInterval(sentinelInterval);
+  }, [autoReconnectActive, cameras, camStatus, camStreamErrors]);
+
+  const handleGlobalReconnectAll = async () => {
+    cameras.forEach((cam) => {
+      setCamStreamErrors((prev) => ({ ...prev, [cam.id]: false }));
+      pingCameraTest(cam.id);
+    });
   };
 
   const handleToggleSurveillance = async (camId) => {
@@ -756,7 +814,43 @@ const ModeratorPanel = () => {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Sentinel de Reconexión de Cámaras */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: autoReconnectActive ? 'rgba(0, 240, 255, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+            border: `1px solid ${autoReconnectActive ? 'rgba(0, 240, 255, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+            padding: '0.25rem 0.75rem',
+            borderRadius: '20px',
+            fontSize: '0.75rem',
+            color: autoReconnectActive ? '#38bdf8' : '#94a3b8'
+          }}>
+            <span>🛡️ Sentinel Auto-Reconexión: {autoReconnectActive ? 'ACTIVO' : 'PAUSADO'}</span>
+            {reconnectSentinelCount > 0 && (
+              <span style={{ background: '#0284c7', color: '#fff', padding: '1px 5px', borderRadius: '8px', fontSize: '0.68rem', fontWeight: 800 }}>
+                {reconnectSentinelCount} auto-restauradas
+              </span>
+            )}
+            <button
+              onClick={handleGlobalReconnectAll}
+              title="Forzar ping y reconexión inmediata a todas las cámaras"
+              style={{
+                background: 'rgba(56, 189, 248, 0.2)',
+                border: '1px solid #38bdf8',
+                color: '#fff',
+                borderRadius: '10px',
+                padding: '0.1rem 0.45rem',
+                fontSize: '0.7rem',
+                cursor: 'pointer',
+                fontWeight: 700
+              }}
+            >
+              ⚡ Reconectar Todo
+            </button>
+          </div>
+
           <span style={{
             background: 'rgba(16, 185, 129, 0.15)',
             border: '1px solid #10b981',
@@ -778,7 +872,8 @@ const ModeratorPanel = () => {
         gap: '1rem',
         marginBottom: '1.75rem',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        paddingBottom: '0.5rem'
+        paddingBottom: '0.5rem',
+        flexWrap: 'wrap'
       }}>
         <button
           onClick={() => setActiveTab('camaras')}
@@ -807,6 +902,37 @@ const ModeratorPanel = () => {
             fontSize: '0.8rem'
           }}>
             {cameras.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('casos')}
+          style={{
+            background: activeTab === 'casos' ? 'rgba(168, 85, 247, 0.15)' : 'none',
+            border: 'none',
+            color: activeTab === 'casos' ? '#c084fc' : '#94a3b8',
+            fontSize: '1.05rem',
+            fontWeight: '700',
+            padding: '0.65rem 1.25rem',
+            borderRadius: '8px 8px 0 0',
+            cursor: 'pointer',
+            borderBottom: activeTab === 'casos' ? '3px solid #a855f7' : '3px solid transparent',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}
+        >
+          <span>📂</span>
+          <span>Expedientes & Casos Registrados</span>
+          <span style={{
+            background: 'rgba(168, 85, 247, 0.25)',
+            color: '#c084fc',
+            padding: '0.15rem 0.5rem',
+            borderRadius: '12px',
+            fontSize: '0.8rem',
+            fontWeight: '800'
+          }}>
+            {cases.length}
           </span>
         </button>
 
@@ -913,6 +1039,9 @@ const ModeratorPanel = () => {
                 const proxyStreamUrl = `http://localhost:3001/api/camaras/${cam.id}/stream`;
                 const videoStreamUrl = isStreamFailed ? directStreamUrl : proxyStreamUrl;
                 const status = camStatus[cam.id] || { online: true, latency_ms: null, testing: false };
+                const isFocused = focusedCameraId === cam.id;
+                const curZoom = digitalZoomState[cam.id] || 1;
+                const isDrawerOpen = Boolean(showCamControlsDrawer[cam.id]);
 
                 return (
                   <div
@@ -921,11 +1050,13 @@ const ModeratorPanel = () => {
                     style={{
                       overflow: 'hidden',
                       borderRadius: '14px',
-                      border: status.online ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(239, 68, 68, 0.25)',
+                      border: isFocused ? '2px solid #00f0ff' : (status.online ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(239, 68, 68, 0.25)'),
                       background: 'rgba(15, 23, 42, 0.95)',
-                      boxShadow: '0 12px 30px rgba(0, 0, 0, 0.6)',
+                      boxShadow: isFocused ? '0 0 35px rgba(0, 240, 255, 0.35)' : '0 12px 30px rgba(0, 0, 0, 0.6)',
                       display: 'flex',
-                      flexDirection: 'column'
+                      flexDirection: 'column',
+                      gridColumn: isFocused ? '1 / -1' : 'auto',
+                      transition: 'all 0.3s ease'
                     }}
                   >
                     {/* Encabezado Superior de la Cámara con Diagnóstico */}
@@ -956,6 +1087,24 @@ const ModeratorPanel = () => {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        {/* Botón Enfocar / Ampliar en este mismo lugar */}
+                        <button
+                          onClick={() => setFocusedCameraId((prev) => prev === cam.id ? null : cam.id)}
+                          style={{
+                            background: isFocused ? 'rgba(0, 240, 255, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                            border: `1px solid ${isFocused ? '#00f0ff' : 'rgba(255, 255, 255, 0.15)'}`,
+                            color: isFocused ? '#00f0ff' : '#cbd5e1',
+                            padding: '0.25rem 0.55rem',
+                            borderRadius: '4px',
+                            fontSize: '0.72rem',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                          title={isFocused ? 'Reducir a tamaño normal en la cuadrícula' : 'Ampliar en foco en esta misma pantalla'}
+                        >
+                          {isFocused ? '⛶ Reducir' : '⛶ Ampliar'}
+                        </button>
+
                         {/* Botón Probar Ping */}
                         <button
                           onClick={() => pingCameraTest(cam.id)}
@@ -1012,13 +1161,15 @@ const ModeratorPanel = () => {
                       </div>
                     </div>
 
-                    {/* Visor de Video en Tiempo Real con Overlay CCTV / Pantalla de Reconexión */}
+                    {/* Visor de Video en Tiempo Real con In-Place Zoom / Pantalla de Reconexión */}
                     <div
+                      id={`camera-viewport-${cam.id}`}
                       style={{
                         position: 'relative',
-                        height: '240px',
+                        height: isFocused ? '520px' : '260px',
                         background: '#020617',
-                        overflow: 'hidden'
+                        overflow: 'hidden',
+                        transition: 'height 0.3s ease'
                       }}
                     >
                       {isStreamFailed ? (
@@ -1072,19 +1223,18 @@ const ModeratorPanel = () => {
                           </div>
                         </div>
                       ) : (
-                        <div
-                          style={{ width: '100%', height: '100%', cursor: 'pointer' }}
-                          onClick={() => setExpandedCamera(cam)}
-                          title="Haz clic para ver en pantalla completa"
-                        >
+                        <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                           <img
                             src={videoStreamUrl}
                             alt={cam.nombre}
                             style={{
                               width: '100%',
                               height: '100%',
-                              objectFit: 'cover',
-                              display: 'block'
+                              objectFit: isFocused ? 'contain' : 'cover',
+                              display: 'block',
+                              transform: `scale(${curZoom})`,
+                              transformOrigin: 'center center',
+                              transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}
                             onError={(e) => {
                               if (e.currentTarget.src !== directStreamUrl) {
@@ -1094,6 +1244,69 @@ const ModeratorPanel = () => {
                               }
                             }}
                           />
+
+                          {/* BARRA DE ZOOM DIGITAL DIRECTO EN LA MISMA CÁMARA (IN-PLACE) */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '10px',
+                              right: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: 'rgba(2, 6, 23, 0.88)',
+                              backdropFilter: 'blur(8px)',
+                              border: '1px solid rgba(56, 189, 248, 0.4)',
+                              borderRadius: '8px',
+                              padding: '3px 6px',
+                              zIndex: 20
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDigitalZoomState((prev) => ({
+                                  ...prev,
+                                  [cam.id]: Math.max(1, (prev[cam.id] || 1) - 0.5)
+                                }));
+                              }}
+                              style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 800, padding: '1px 4px' }}
+                              title="Alejar zoom"
+                            >
+                              ➖
+                            </button>
+                            <span style={{ fontSize: '0.72rem', color: '#00f0ff', fontWeight: 800, minWidth: '30px', textAlign: 'center' }}>
+                              {curZoom.toFixed(1)}x
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDigitalZoomState((prev) => ({
+                                  ...prev,
+                                  [cam.id]: Math.min(3.5, (prev[cam.id] || 1) + 0.5)
+                                }));
+                              }}
+                              style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 800, padding: '1px 4px' }}
+                              title="Acercar zoom en esta cámara"
+                            >
+                              ➕
+                            </button>
+                            {curZoom > 1 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDigitalZoomState((prev) => ({ ...prev, [cam.id]: 1 }));
+                                }}
+                                style={{ background: 'rgba(239, 68, 68, 0.25)', border: '1px solid #ef4444', color: '#f87171', borderRadius: '4px', cursor: 'pointer', fontSize: '0.65rem', padding: '1px 4px', fontWeight: 800 }}
+                                title="Restablecer zoom 1x"
+                              >
+                                1x
+                              </button>
+                            )}
+                          </div>
 
                           {/* Overlays Tácticos HUD */}
                           <div style={{
@@ -1258,7 +1471,35 @@ const ModeratorPanel = () => {
                                 <span>⏪</span>
                                 <span>Rebobinar 5s</span>
                               </button>
-                              <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: '700' }}>⛶ Pantalla Completa</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const elem = document.getElementById(`camera-viewport-${cam.id}`);
+                                  if (elem) {
+                                    if (!document.fullscreenElement) {
+                                      elem.requestFullscreen().catch(() => null);
+                                    } else {
+                                      document.exitFullscreen().catch(() => null);
+                                    }
+                                  }
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#38bdf8',
+                                  fontWeight: '700',
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                                title="Expandir a pantalla completa del monitor"
+                              >
+                                <span>⛶</span>
+                                <span>Pantalla Completa</span>
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1391,14 +1632,59 @@ const ModeratorPanel = () => {
                       </div>
                     )}
 
-                    {/* BARRA DE CONTROL DE LA CÁMARA (MOVIMIENTO ROBÓTICO PTZ + HERRAMIENTAS) */}
-                    <div style={{
-                      padding: '0.85rem 1rem 1rem 1rem',
-                      background: 'rgba(15, 23, 42, 0.6)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.75rem'
-                    }}>
+                    {/* ACCIÓN RÁPIDA: ESCANEAR FRAME DIRECTO Y TOGGLE DE CONTROLES */}
+                    <div style={{ padding: '0.5rem 0.85rem', background: 'rgba(15, 23, 42, 0.7)', display: 'flex', gap: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                      <button
+                        onClick={() => handleTriggerLiveDetection(cam)}
+                        className="btn btn-primary"
+                        style={{
+                          flex: 1,
+                          padding: '0.45rem',
+                          fontSize: '0.78rem',
+                          fontWeight: '700',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem'
+                        }}
+                      >
+                        <span>⚡</span>
+                        <span>Escanear Frame IA</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowCamControlsDrawer((prev) => ({ ...prev, [cam.id]: !prev[cam.id] }))}
+                        style={{
+                          background: isDrawerOpen ? 'rgba(14, 165, 233, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                          border: isDrawerOpen ? '1px solid #0284c7' : '1px solid rgba(255, 255, 255, 0.12)',
+                          color: isDrawerOpen ? '#38bdf8' : '#cbd5e1',
+                          padding: '0.45rem 0.75rem',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                        title="Desplegar controles avanzados PTZ y herramientas"
+                      >
+                        <span>{isPtzCapable(cam) ? '🕹️ PTZ' : '⚙️ Ajustes'}</span>
+                        <span>{isDrawerOpen ? '▲' : '▼'}</span>
+                      </button>
+                    </div>
+
+                    {/* BARRA DE CONTROL DE LA CÁMARA (MOVIMIENTO ROBÓTICO PTZ + HERRAMIENTAS - PLEGABLE) */}
+                    {isDrawerOpen && (
+                      <div className="animate-fade-in" style={{
+                        padding: '0.85rem 1rem 1rem 1rem',
+                        background: 'rgba(15, 23, 42, 0.75)',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem'
+                      }}>
                       {/* Sub-selector o Encabezado de Cámara según sus capacidades de hardware */}
                       {isPtzCapable(cam) ? (
                         <div style={{
@@ -1765,6 +2051,7 @@ const ModeratorPanel = () => {
                         <span>Escanear Frame Manualmente</span>
                       </button>
                     </div>
+                    )}
                   </div>
                 );
               })}
@@ -1956,6 +2243,324 @@ const ModeratorPanel = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ================= CONTENIDO PESTAÑA: EXPEDIENTES & CASOS REGISTRADOS ================= */}
+      {activeTab === 'casos' && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Métricas y KPIs de Casos */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem'
+          }}>
+            <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid #a855f7' }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                Total Expedientes Registrados
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f8fafc', marginTop: '0.25rem' }}>
+                {cases.length}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#c084fc', marginTop: '0.2rem' }}>
+                Base de datos nacional LocalizaSV
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid #ef4444' }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                Búsqueda Activa (Desaparecidos)
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#f87171', marginTop: '0.25rem' }}>
+                {cases.filter(c => c.estado === 'Desaparecido').length}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#fca5a5', marginTop: '0.2rem' }}>
+                Cotejo en vivo en red de cámaras
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                En Proceso de Rescate
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#fbbf24', marginTop: '0.25rem' }}>
+                {cases.filter(c => c.estado === 'En Proceso de Rescate').length}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#fde68a', marginTop: '0.2rem' }}>
+                Operativos de brigada en campo
+              </div>
+            </div>
+
+            <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                Personas Localizadas
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#34d399', marginTop: '0.25rem' }}>
+                {cases.filter(c => c.estado === 'Encontrado').length}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#6ee7b7', marginTop: '0.2rem' }}>
+                Expedientes culminados con éxito
+              </div>
+            </div>
+          </div>
+
+          {/* Barra de Búsqueda y Filtros */}
+          <div className="glass-panel" style={{
+            padding: '1.25rem 1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            background: 'rgba(15, 23, 42, 0.85)'
+          }}>
+            <div style={{ flex: '1 1 280px', position: 'relative' }}>
+              <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>🔍</span>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Buscar por nombre, descripción o lugar de desaparición..."
+                value={caseSearchTerm}
+                onChange={(e) => setCaseSearchTerm(e.target.value)}
+                style={{ paddingLeft: '2.5rem', width: '100%' }}
+              />
+            </div>
+
+            <div style={{ flex: '0 1 180px' }}>
+              <select
+                className="form-control"
+                value={caseStatusFilter}
+                onChange={(e) => setCaseStatusFilter(e.target.value)}
+              >
+                <option value="todos">Todos los Estados</option>
+                <option value="Desaparecido">Desaparecido</option>
+                <option value="En Proceso de Rescate">En Proceso de Rescate</option>
+                <option value="Encontrado">Localizado / Encontrado</option>
+              </select>
+            </div>
+
+            <div style={{ flex: '0 1 200px' }}>
+              <select
+                className="form-control"
+                value={caseDeptFilter}
+                onChange={(e) => setCaseDeptFilter(e.target.value)}
+              >
+                <option value="todos">Todos los Departamentos</option>
+                {DEPARTAMENTOS_SV.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={fetchCases}
+              className="btn btn-secondary"
+              style={{ padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+            >
+              <span>🔄</span>
+              <span>Actualizar</span>
+            </button>
+          </div>
+
+          {/* Listado / Cuadrícula de Expedientes */}
+          {(() => {
+            const filtered = cases.filter((c) => {
+              const term = caseSearchTerm.toLowerCase();
+              const matchText = (c.nombre_desaparecido || '').toLowerCase().includes(term) ||
+                (c.ubicacion_desaparicion || '').toLowerCase().includes(term) ||
+                (c.descripcion || '').toLowerCase().includes(term) ||
+                (c.vestimenta || '').toLowerCase().includes(term);
+
+              const matchStatus = caseStatusFilter === 'todos' || c.estado === caseStatusFilter;
+              const matchDept = caseDeptFilter === 'todos' || c.departamento === caseDeptFilter;
+              return matchText && matchStatus && matchDept;
+            });
+
+            if (filtered.length === 0) {
+              return (
+                <div className="glass-panel text-center" style={{ padding: '3.5rem 2rem' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>📂</div>
+                  <h3>No se encontraron expedientes coincidentes</h3>
+                  <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', margin: '0.5rem auto' }}>
+                    Ajuste los filtros de búsqueda o verifique los criterios ingresados.
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+                gap: '1.5rem'
+              }}>
+                {filtered.map((c) => {
+                  const isFound = c.estado === 'Encontrado';
+                  const isRescue = c.estado === 'En Proceso de Rescate';
+                  const statusColor = isFound ? '#10b981' : isRescue ? '#f59e0b' : '#ef4444';
+
+                  return (
+                    <div
+                      key={c.id}
+                      className="glass-panel"
+                      style={{
+                        padding: '1.25rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: '1rem',
+                        borderRadius: '12px',
+                        border: `1px solid ${statusColor}44`,
+                        background: 'rgba(15, 23, 42, 0.95)',
+                        transition: 'all 0.25s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: '1rem' }}>
+                        {/* Foto con Badges */}
+                        <div style={{ position: 'relative', width: '100px', height: '115px', flexShrink: 0, borderRadius: '8px', overflow: 'hidden', background: '#000' }}>
+                          <img
+                            src={getImageUrl(c.foto_url)}
+                            alt={c.nombre_desaparecido}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              e.target.src = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80';
+                            }}
+                          />
+                          <span style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: `${statusColor}dd`,
+                            color: '#fff',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            textAlign: 'center',
+                            padding: '2px 0',
+                            textTransform: 'uppercase'
+                          }}>
+                            {c.estado}
+                          </span>
+                        </div>
+
+                        {/* Información Clave */}
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {c.nombre_desaparecido}
+                            </h4>
+                          </div>
+
+                          <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                            {c.edad} años • {c.genero} • Caso #{c.id}
+                          </div>
+
+                          <div style={{ fontSize: '0.75rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                            <span>📍</span>
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {c.ubicacion_desaparicion}
+                            </span>
+                          </div>
+
+                          {/* Badge Biometría InsightFace */}
+                          <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              background: 'rgba(0, 240, 255, 0.12)',
+                              border: '1px solid rgba(0, 240, 255, 0.4)',
+                              color: '#00f0ff',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              fontSize: '0.68rem',
+                              fontWeight: 700
+                            }}>
+                              ⚡ ArcFace 512-D
+                            </span>
+
+                            {c.vestimenta && (
+                              <span style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                color: '#cbd5e1',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.68rem'
+                              }}>
+                                👕 Con Ropa
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detalles Rápidos Forenses */}
+                      {(c.vestimenta || c.senas_particulares || c.condicion_medica) && (
+                        <div style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          padding: '0.6rem 0.75rem',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          color: '#cbd5e1',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.2rem'
+                        }}>
+                          {c.vestimenta && (
+                            <div>
+                              <span style={{ color: '#94a3b8' }}>Ropa:</span> {c.vestimenta}
+                            </div>
+                          )}
+                          {c.senas_particulares && (
+                            <div>
+                              <span style={{ color: '#94a3b8' }}>Señas:</span> {c.senas_particulares}
+                            </div>
+                          )}
+                          {c.condicion_medica && (
+                            <div style={{ color: '#f87171' }}>
+                              <span>Salud:</span> {c.condicion_medica}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Botón Principal: Abrir Expediente Forense y Capturas de Cámaras */}
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDossierCaseId(c.id)}
+                          className="btn btn-primary"
+                          style={{
+                            flex: 1,
+                            padding: '0.55rem',
+                            fontSize: '0.82rem',
+                            fontWeight: 800,
+                            background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.4rem',
+                            boxShadow: '0 4px 14px rgba(14, 165, 233, 0.3)'
+                          }}
+                        >
+                          <span>📂</span>
+                          <span>Abrir Expediente Forense & Capturas</span>
+                        </button>
+
+                        <a
+                          href={`/casos/${c.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary"
+                          style={{ padding: '0.55rem 0.75rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center' }}
+                          title="Abrir ficha pública en nueva pestaña"
+                        >
+                          ↗️
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -2634,6 +3239,15 @@ const ModeratorPanel = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ================= MODAL: EXPEDIENTE FORENSE Y DOSSIER VIVO DE CASO ================= */}
+      {selectedDossierCaseId && (
+        <CaseDossierModal
+          isOpen={Boolean(selectedDossierCaseId)}
+          caseId={selectedDossierCaseId}
+          onClose={() => setSelectedDossierCaseId(null)}
+        />
       )}
     </div>
   );

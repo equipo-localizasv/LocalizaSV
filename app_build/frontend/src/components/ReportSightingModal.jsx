@@ -3,9 +3,15 @@ import api from '../services/api';
 
 const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuccess }) => {
   const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+
   const [selectedCaseId, setSelectedCaseId] = useState(initialCaseId || (cases[0]?.id || ''));
   const [foto, setFoto] = useState(null);
   const [fotoPreview, setFotoPreview] = useState('');
+  const [photoSourceMode, setPhotoSourceMode] = useState('upload'); // 'upload' | 'camera'
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const [ubicacionTexto, setUbicacionTexto] = useState('');
   const [ubicacionLat, setUbicacionLat] = useState('');
   const [ubicacionLng, setUbicacionLng] = useState('');
@@ -15,6 +21,71 @@ const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuc
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [geoLoading, setGeoLoading] = useState(false);
+
+  // Detener cámara al desmontar o cerrar
+  const stopLiveCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setIsCameraActive(false);
+    setCameraLoading(false);
+  };
+
+  const startLiveCamera = async () => {
+    setError('');
+    setCameraLoading(true);
+    try {
+      if (streamRef.current) {
+        stopLiveCamera();
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      streamRef.current = stream;
+      setIsCameraActive(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Error accediendo a cámara:', err);
+      setError('No se pudo acceder a la cámara del dispositivo. Permita los permisos del navegador o use la opción de subir archivo.');
+    } finally {
+      setCameraLoading(false);
+    }
+  };
+
+  const handleCaptureSnapshot = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setError('Error al generar captura fotográfica.');
+        return;
+      }
+      const fileName = `avistamiento_cam_${Date.now()}.jpg`;
+      const capturedFile = new File([blob], fileName, { type: 'image/jpeg' });
+      setFoto(capturedFile);
+      setFotoPreview(URL.createObjectURL(blob));
+      stopLiveCamera();
+    }, 'image/jpeg', 0.92);
+  };
+
+  const handleCloseModal = () => {
+    stopLiveCamera();
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -28,6 +99,7 @@ const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuc
       }
       setFoto(file);
       setFotoPreview(URL.createObjectURL(file));
+      stopLiveCamera();
     }
   };
 
@@ -65,7 +137,7 @@ const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuc
     }
 
     if (!foto) {
-      setError('Por favor adjunta una fotografía o evidencia del avistamiento.');
+      setError('Por favor toma una foto o adjunta una evidencia fotográfica del avistamiento.');
       return;
     }
 
@@ -90,6 +162,8 @@ const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuc
       const response = await api.post('/avistamientos', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+
+      stopLiveCamera();
 
       if (onSuccess) {
         onSuccess(response.data.alerta || response.data);
@@ -142,12 +216,12 @@ const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuc
                 Reportar Avistamiento Ciudadano
               </h3>
               <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Envía una foto de evidencia para alertar a moderadores y rescatistas
+                Envía una foto de evidencia que se incorporará al <strong>Expediente Forense</strong> del caso
               </p>
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             style={{
               background: 'none',
               border: 'none',
@@ -187,58 +261,217 @@ const ReportSightingModal = ({ isOpen, onClose, initialCaseId, cases = [], onSuc
             </div>
           )}
 
-          {/* Subida de foto de evidencia */}
+          {/* Selector de Método de Evidencia: Galería vs Cámara en Vivo */}
           <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-            <label className="form-label" style={{ fontWeight: 600 }}>
-              Fotografía de Evidencia <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: '2px dashed rgba(14, 165, 233, 0.5)',
-                borderRadius: '8px',
-                padding: '1.5rem',
-                textAlign: 'center',
-                cursor: 'pointer',
-                background: 'rgba(15, 23, 42, 0.6)',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {fotoPreview ? (
-                <div>
-                  <img
-                    src={fotoPreview}
-                    alt="Evidencia"
-                    style={{
-                      maxHeight: '180px',
-                      borderRadius: '6px',
-                      objectFit: 'contain',
-                      marginBottom: '0.75rem'
-                    }}
-                  />
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--primary)' }}>
-                    ✓ Imagen seleccionada: {foto.name} (Clic para cambiar)
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>📷</span>
-                  <p style={{ margin: '0 0 0.25rem 0', fontWeight: 600, color: '#f8fafc' }}>
-                    Toca para subir foto desde tu galería o cámara
-                  </p>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Formatos JPG, PNG, WEBP hasta 5MB
-                  </span>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                style={{ display: 'none' }}
-              />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <label className="form-label" style={{ fontWeight: 600, margin: 0 }}>
+                Fotografía de Evidencia <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(255,255,255,0.06)', padding: '2px', borderRadius: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoSourceMode('upload');
+                    stopLiveCamera();
+                  }}
+                  style={{
+                    background: photoSourceMode === 'upload' ? '#0ea5e9' : 'transparent',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '0.25rem 0.6rem',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  📁 Subir Archivo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoSourceMode('camera');
+                    startLiveCamera();
+                  }}
+                  style={{
+                    background: photoSourceMode === 'camera' ? '#0ea5e9' : 'transparent',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '0.25rem 0.6rem',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  📸 Tomar Foto en Vivo
+                </button>
+              </div>
             </div>
+
+            {/* MODO CÁMARA EN VIVO */}
+            {photoSourceMode === 'camera' && !fotoPreview && (
+              <div style={{
+                background: '#020617',
+                border: '2px solid rgba(0, 240, 255, 0.4)',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                position: 'relative',
+                textAlign: 'center',
+                padding: isCameraActive ? '0' : '1.5rem'
+              }}>
+                {isCameraActive ? (
+                  <div style={{ position: 'relative', width: '100%', minHeight: '260px', background: '#000' }}>
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{ width: '100%', maxHeight: '320px', objectFit: 'cover', display: 'block' }}
+                    />
+                    {/* Retícula HUD */}
+                    <div style={{
+                      position: 'absolute',
+                      inset: '20px',
+                      border: '1px dashed rgba(0, 240, 255, 0.6)',
+                      borderRadius: '8px',
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <span style={{ color: 'rgba(0, 240, 255, 0.8)', fontSize: '0.72rem', background: 'rgba(0,0,0,0.6)', padding: '2px 8px', borderRadius: '4px' }}>
+                        Encuadre el rostro o persona
+                      </span>
+                    </div>
+
+                    {/* Botones de control sobre el video */}
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '12px',
+                      left: 0,
+                      right: 0,
+                      display: 'flex',
+                      justifyContent: 'center',
+                      gap: '0.75rem'
+                    }}>
+                      <button
+                        type="button"
+                        onClick={handleCaptureSnapshot}
+                        className="btn btn-primary"
+                        style={{
+                          background: 'linear-gradient(135deg, #00f0ff, #0284c7)',
+                          color: '#020617',
+                          fontWeight: '800',
+                          padding: '0.5rem 1.25rem',
+                          borderRadius: '25px',
+                          boxShadow: '0 0 15px rgba(0, 240, 255, 0.6)'
+                        }}
+                      >
+                        📸 Disparar Captura
+                      </button>
+                      <button
+                        type="button"
+                        onClick={stopLiveCamera}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.5rem 0.9rem', fontSize: '0.75rem', borderRadius: '20px' }}
+                      >
+                        ✕ Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>📷</span>
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#f8fafc', fontWeight: '600' }}>
+                      Captura directa desde la cámara de tu teléfono o laptop
+                    </p>
+                    <button
+                      type="button"
+                      onClick={startLiveCamera}
+                      disabled={cameraLoading}
+                      className="btn btn-primary"
+                      style={{ padding: '0.5rem 1.25rem', fontWeight: '700' }}
+                    >
+                      {cameraLoading ? 'Activando cámara...' : '⚡ Iniciar Cámara del Dispositivo'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* MODO ARCHIVO / PREVIEW DE CAPTURA */}
+            {(photoSourceMode === 'upload' || fotoPreview) && (
+              <div
+                onClick={() => {
+                  if (!fotoPreview) fileInputRef.current?.click();
+                }}
+                style={{
+                  border: fotoPreview ? '2px solid rgba(16, 185, 129, 0.5)' : '2px dashed rgba(14, 165, 233, 0.5)',
+                  borderRadius: '10px',
+                  padding: '1.5rem',
+                  textAlign: 'center',
+                  cursor: fotoPreview ? 'default' : 'pointer',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {fotoPreview ? (
+                  <div>
+                    <img
+                      src={fotoPreview}
+                      alt="Evidencia"
+                      style={{
+                        maxHeight: '200px',
+                        borderRadius: '8px',
+                        objectFit: 'contain',
+                        marginBottom: '0.75rem',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#10b981', fontWeight: '700' }}>
+                        ✓ Evidencia Lista ({foto?.name || 'Captura en vivo'})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFoto(null);
+                          setFotoPreview('');
+                          if (photoSourceMode === 'camera') {
+                            startLiveCamera();
+                          }
+                        }}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.2rem 0.6rem', fontSize: '0.72rem' }}
+                      >
+                        🔄 Tomar o Elegir Otra
+                      </button>
+                    </div>
+                    <div style={{ marginTop: '0.4rem', fontSize: '0.72rem', color: '#38bdf8' }}>
+                      🔬 Se cotejará automáticamente con InsightFace ArcFace y se añadirá al Expediente Forense.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>📷</span>
+                    <p style={{ margin: '0 0 0.25rem 0', fontWeight: 600, color: '#f8fafc' }}>
+                      Toca para subir foto desde tu galería o cámara
+                    </p>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Formatos JPG, PNG, WEBP hasta 5MB
+                    </span>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Ubicación y coordenadas */}

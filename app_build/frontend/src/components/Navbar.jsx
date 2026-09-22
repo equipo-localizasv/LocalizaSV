@@ -1,12 +1,37 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../App';
+import soundEffects from '../services/soundEffects';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  // Estado del tema visual táctico
+  const [currentTheme, setCurrentTheme] = useState(() => {
+    return localStorage.getItem('localizasv_theme') || 'c4i';
+  });
+
+  // Estado de audio táctico
+  const [muted, setMuted] = useState(() => soundEffects.isMuted());
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('localizasv_theme', currentTheme);
+  }, [currentTheme]);
+
+  const handleToggleTheme = (newTheme) => {
+    setCurrentTheme(newTheme);
+    soundEffects.playClickSound();
+  };
+
+  const handleToggleSound = () => {
+    const isNowMuted = soundEffects.toggleMute();
+    setMuted(isNowMuted);
+  };
+
   const handleLogout = () => {
+    soundEffects.playClickSound();
     logout();
     navigate('/login');
   };
@@ -105,7 +130,88 @@ const Navbar = () => {
           <span style={{ color: '#38bdf8' }}>{clock}</span>
         </div>
       </div>
-      <div className="navbar-menu">
+      <div className="navbar-menu" style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+        {/* Conmutador de Temas Tácticos */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          background: 'rgba(15, 23, 42, 0.8)',
+          border: '1px solid rgba(0, 240, 255, 0.25)',
+          borderRadius: '20px',
+          padding: '2px',
+          gap: '2px'
+        }}>
+          <button
+            onClick={() => handleToggleTheme('c4i')}
+            title="Modo C4I Comando Central (Azul Espacial Profundo)"
+            style={{
+              background: currentTheme === 'c4i' ? 'rgba(0, 240, 255, 0.25)' : 'transparent',
+              border: currentTheme === 'c4i' ? '1px solid #00f0ff' : 'none',
+              color: currentTheme === 'c4i' ? '#00f0ff' : '#94a3b8',
+              borderRadius: '16px',
+              padding: '0.2rem 0.55rem',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            🌌 C4I
+          </button>
+          <button
+            onClick={() => handleToggleTheme('cyberpunk')}
+            title="Modo Cyberpunk Neón (Acentos Púrpura y Neón)"
+            style={{
+              background: currentTheme === 'cyberpunk' ? 'rgba(192, 132, 252, 0.3)' : 'transparent',
+              border: currentTheme === 'cyberpunk' ? '1px solid #c084fc' : 'none',
+              color: currentTheme === 'cyberpunk' ? '#c084fc' : '#94a3b8',
+              borderRadius: '16px',
+              padding: '0.2rem 0.55rem',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            ⚡ Cyber
+          </button>
+          <button
+            onClick={() => handleToggleTheme('tactical')}
+            title="Modo Operativo de Campo (Alto Contraste y Ámbar)"
+            style={{
+              background: currentTheme === 'tactical' ? 'rgba(245, 158, 11, 0.3)' : 'transparent',
+              border: currentTheme === 'tactical' ? '1px solid #fbbf24' : 'none',
+              color: currentTheme === 'tactical' ? '#fbbf24' : '#94a3b8',
+              borderRadius: '16px',
+              padding: '0.2rem 0.55rem',
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            🎯 Operativo
+          </button>
+        </div>
+
+        {/* Botón de Sonido Táctico */}
+        <button
+          onClick={handleToggleSound}
+          title={muted ? 'Activar Efectos de Audio Tácticos' : 'Silenciar Efectos de Audio'}
+          style={{
+            background: muted ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 240, 255, 0.15)',
+            border: `1px solid ${muted ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 240, 255, 0.4)'}`,
+            color: muted ? '#64748b' : '#38bdf8',
+            borderRadius: '20px',
+            padding: '0.25rem 0.6rem',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.3rem'
+          }}
+        >
+          <span>{muted ? '🔇' : '🔊'}</span>
+          <span>{muted ? 'Muted' : 'Audio ON'}</span>
+        </button>
         {user ? (
           <>
             {/* Vistas exclusivas según el rol */}
