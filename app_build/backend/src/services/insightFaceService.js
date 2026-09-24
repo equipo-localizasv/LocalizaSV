@@ -10,62 +10,91 @@ const fs = require('fs');
  */
 class InsightFaceService {
   constructor() {
-        this.pythonScript = path.join(__dirname, '../../scripts/insightface_scanner.py');
-        this.backendRoot = path.join(__dirname, '../../');
-        this.worker = null;
-        this.isWorkerReady = false;
-        this.pythonAvailable = true; // <--- AGREGAR ESTA LÍNEA
-        this.reqSeq = 1;
-        this.pendingCallbacks = new Map();
-        this.stdoutBuffer = '';
+    this.pythonScript = path.join(__dirname, '../../scripts/insightface_scanner.py');
+    this.backendRoot = path.join(__dirname, '../../');
+    this.worker = null;
+    this.isWorkerReady = false;
+    this.pythonAvailable = true;
+    this.reqSeq = 1;
+    this.pendingCallbacks = new Map();
+    this.stdoutBuffer = '';
 
-        this.startWorker();
-    }
+    this.startWorker();
+  }
 
   /**
    * Inicia el proceso de fondo (worker) que mantiene los modelos YuNet y SFace cargados en RAM
-   startWorker() {
-        if (!this.pythonAvailable) return; // <--- No reintentar si Python no existe
+   */
+  startWorker() {
+    if (!this.pythonAvailable) return;
 
-        try {
-            this.worker = spawn('python', [this.pythonScript, '--worker'], {
-                cwd: this.backendRoot,
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
+    try {
+      this.worker = spawn('python', [this.pythonScript, '--worker'], {
+        cwd: this.backendRoot,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
 
-            this.worker.stdout.on('data', (chunk) => {
-                // ... (mantén tu código actual de stdout aquí)
-            });
+      this.worker.stdout.on('data', (chunk) => {
+        this.stdoutBuffer += chunk.toString();
+        const lines = this.stdoutBuffer.split('\n');
+        this.stdoutBuffer = lines.pop(); // Mantener fragmento incompleto
 
-            this.worker.stderr.on('data', (d) => {
-                const str = d.toString();
-                if (!str.includes('WARN')) {
-                    console.warn('[InsightFace Worker]:', str.trim());
-                }
-            });
-
-            this.worker.on('exit', (code) => {
-                this.isWorkerReady = false;
-                this.worker = null;
-                
-                // SOLO reiniciar si Python está disponible en el entorno
-                if (this.pythonAvailable) {
-                    console.warn(`[InsightFace] Worker neuronal finalizó (código ${code}). Reiniciando en 1s...`);
-                    setTimeout(() => this.startWorker(), 1200);
-                }
-            });
-
-            this.worker.on('error', (err) => {
-                console.warn('[InsightFace] Error en worker process:', err.message);
-                if (err.code === 'ENOENT') {
-                    console.warn('⚠️ Python no está disponible en producción. Módulo biométrico desactivado.');
-                    this.pythonAvailable = false; // <--- Desactiva reintentos futuros
-                }
-            });
-        } catch (e) {
-            console.warn('[InsightFace] No se pudo iniciar worker daemon:', e.message);
-            this.pythonAvailable = false;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const data = JSON.parse(trimmed);
+            if (data.status === 'ready') {
+              this.isWorkerReady = true;
+              console.log('[InsightFace] ⚡ Worker neuronal YuNet+SFace acelerado listo (Inferencia ~15ms).');
+              continue;
+            }
+            if (data.id && this.pendingCallbacks.has(data.id)) {
+              const { resolve, timer } = this.pendingCallbacks.get(data.id);
+              clearTimeout(timer);
+              this.pendingCallbacks.delete(data.id);
+              resolve(data);
+            }
+          } catch (err) {
+            console.warn('[InsightFace] Error procesando salida de worker:', err.message);
+          }
         }
+      });
+
+      this.worker.stderr.on('data', (d) => {
+        const str = d.toString();
+        if (!str.includes('WARN')) {
+          console.warn('[InsightFace Worker]:', str.trim());
+        }
+      });
+
+      this.worker.on('exit', (code) => {
+        this.isWorkerReady = false;
+        this.worker = null;
+        if (this.pythonAvailable && code === 0) {
+          setTimeout(() => this.startWorker(), 1200);
+        } else if (this.pythonAvailable && code !== 0) {
+          this.retryCount = (this.retryCount || 0) + 1;
+          if (this.retryCount <= 2) {
+            console.warn(`[InsightFace] Worker finalizó con error (código ${code}). Reintentando (${this.retryCount}/2)...`);
+            setTimeout(() => this.startWorker(), 2000);
+          } else {
+            console.warn('[InsightFace] Desactivando worker daemon tras múltiples fallos (faltan dependencias de python como numpy/opencv).');
+            this.pythonAvailable = false;
+          }
+        }
+      });
+
+      this.worker.on('error', (err) => {
+        console.warn('[InsightFace] Error en worker process:', err.message);
+        if (err.code === 'ENOENT') {
+          console.warn('⚠️ Python no está disponible. Módulo biométrico desactivado.');
+          this.pythonAvailable = false;
+        }
+      });
+    } catch (e) {
+      console.warn('[InsightFace] No se pudo iniciar worker daemon:', e.message);
+      this.pythonAvailable = false;
     }
   }
 
@@ -132,26 +161,30 @@ class InsightFaceService {
     return this.fallbackScan(resolvedPath, annotatedOutputPath);
   }
 
- fallbackScan(resolvedPath, annotatedOutputPath) {
-        if (!this.pythonAvailable) {
-            return Promise.resolve({
-                success: false,
-                face_detected: false,
-                error: 'Motor biométrico deshabilitado (Python no disponible en el servidor)'
-            });
-        }
-
-        const args = [this.pythonScript, resolvedPath];
-        if (annotatedOutputPath) {
-            args.push(annotatedOutputPath);
-        }
-
-        return new Promise((resolve) => {
-            execFile('python', args, { timeout: 10000 }, (err, stdout, stderr) => {
-                // ... (mantén tu código actual de execFile aquí)
-            });
-        });
+  fallbackScan(resolvedPath, annotatedOutputPath) {
+    if (!this.pythonAvailable) {
+      return Promise.resolve({
+        success: false,
+        face_detected: false,
+        error: 'Motor biométrico deshabilitado (Python no disponible en el servidor)'
+      });
     }
+
+    const args = [this.pythonScript, resolvedPath];
+    if (annotatedOutputPath) {
+      args.push(annotatedOutputPath);
+    }
+
+    return new Promise((resolve) => {
+      execFile('python', args, { timeout: 10000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error('[InsightFace] Error ejecutando script python (fallback):', err.message);
+          return resolve({
+            success: false,
+            face_detected: false,
+            error: err.message
+          });
+        }
         try {
           const parsed = JSON.parse(stdout.trim());
           return resolve(parsed);
