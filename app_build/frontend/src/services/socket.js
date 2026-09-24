@@ -9,12 +9,6 @@ class SocketService {
     this.listeners = new Map(); // Mapa de evento -> Set(callbacks)
     this.token = null;
     this.reconnectTimer = null;
-    class SocketService {
-  constructor() {
-    this.ws = null;
-    this.listeners = new Map();
-    this.token = null;
-    this.reconnectTimer = null;
 
     // URL dinámica para desarrollo y producción
     const defaultWsUrl = window.location.protocol === 'https:'
