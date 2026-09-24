@@ -4,7 +4,6 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const http = require('http');
-const WebSocket = require('ws');
 require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
@@ -19,67 +18,85 @@ const biometriaRoutes = require('./routes/biometriaRoutes');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Global Middlewares
 app.use(helmet({
-    crossOriginResourcePolicy: false // Permite servir imágenes estáticas entre orígenes
+    crossOriginResourcePolicy: false 
 }));
 
-// Configuración robusta de CORS para aceptar tu dominio de Netlify y desarrollo local
+const allowedOrigins = [
+    'https://localizasv.dpdns.org',
+    'https://www.localizasv.dpdns.org',
+    'http://localhost:5173',
+    'http://localhost:3000'
+];
+
 app.use(cors({
-    origin: [
-        'https://localizasv.dpdns.org', 
-        'https://www.localizasv.dpdns.org', 
-        'http://localhost:5173',
-        'http://localhost:3000'
-    ],
+    origin: function (origin, callback) {
+        
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.netlify.app')) {
+            return callback(null, true);
+        }
+        return callback(new Error('Bloqueado por política CORS'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    credentials: true,
+    optionsSuccessStatus: 200
 }));
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Directorio de archivos estáticos para imágenes subidas
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Routes (El prefijo /api/auth se define aquí)
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
-app.use('/api/casos', caseRoutes); // Soporte bilingüe
+app.use('/api/casos', caseRoutes); 
 app.use('/api/detecciones', detectionRoutes);
 app.use('/api/alertas', alertRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/camaras', cameraRoutes);
 app.use('/api/avistamientos', sightingRoutes);
+if (biometriaRoutes) {
+    app.use('/api/biometria', biometriaRoutes);
+}
 
-// Ruta de estado base de la API
 app.get('/', (req, res) => {
     res.json({ message: 'LocalizaSV API running with WebSocket support' });
 });
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('API Error:', err.message || err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+
+app.use((req, res, next) => {
+    res.status(404).json({ 
+        error: 'Ruta no encontrada', 
+        path: req.originalUrl 
+    });
 });
 
-// Server & WebSocket Initialization
+app.use((err, req, res, next) => {
+    console.error('API Error:', err.message || err);
+    res.status(err.status || 500).json({ 
+        error: err.message || 'Internal Server Error' 
+    });
+});
+
 const server = http.createServer(app);
 const { initWebSocketServer, broadcast } = require('./wsServer');
 const surveillanceService = require('./services/surveillanceService');
 
-if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT} with WebSocket support.`);
-  });
-  initWebSocketServer(server);
-  surveillanceService.setWebSocketBroadcaster(broadcast);
-  surveillanceService.start();
+server.listen(PORT, () => {
+    console.log(`🚀 Servidor ejecutándose en puerto ${PORT} en modo ${process.env.NODE_ENV || 'development'}`);
+});
+
+try {
+    initWebSocketServer(server);
+    surveillanceService.setWebSocketBroadcaster(broadcast);
+    surveillanceService.start();
+} catch (wsErr) {
+    console.warn('Advertencia al iniciar servicios secundarios:', wsErr.message);
 }
 
 module.exports = app;
 module.exports.server = server;
 module.exports.broadcast = broadcast;
-
-
