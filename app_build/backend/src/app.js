@@ -18,8 +18,9 @@ const biometriaRoutes = require('./routes/biometriaRoutes');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Configuración de Helmet ajustada
 app.use(helmet({
-    crossOriginResourcePolicy: false 
+    crossOriginResourcePolicy: false
 }));
 
 const allowedOrigins = [
@@ -29,21 +30,34 @@ const allowedOrigins = [
     'http://localhost:3000'
 ];
 
-app.use(cors({
+// Opciones de CORS optimizadas
+const corsOptions = {
     origin: function (origin, callback) {
-        
+        // Permitir peticiones sin origen (Postman, curl, Server-to-Server)
         if (!origin) return callback(null, true);
-        
-        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.netlify.app')) {
+
+        // Verificar orígenes permitidos o subdominios
+        const isAllowed = allowedOrigins.includes(origin) || 
+                          origin.endsWith('.netlify.app') || 
+                          origin.endsWith('.dpdns.org');
+
+        if (isAllowed) {
             return callback(null, true);
+        } else {
+            console.warn(`⚠️ [CORS] Origen bloqueado: ${origin}`);
+            // Regresar false evita que Express lance un error 500 sin cabeceras
+            return callback(null, false);
         }
-        return callback(new Error('Bloqueado por política CORS'));
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     credentials: true,
     optionsSuccessStatus: 200
-}));
+};
+
+// Aplicar CORS globalmente y responder a peticiones Preflight (OPTIONS)
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -74,8 +88,11 @@ app.use((req, res, next) => {
     });
 });
 
+// Manejador de errores global asegurando cabecera CORS
 app.use((err, req, res, next) => {
     console.error('API Error:', err.message || err);
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.status(err.status || 500).json({ 
         error: err.message || 'Internal Server Error' 
     });
