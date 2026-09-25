@@ -38,6 +38,8 @@ const corsOptions = {
 
         // Verificar orígenes permitidos o subdominios
         const isAllowed = allowedOrigins.includes(origin) || 
+                          origin.startsWith('http://localhost:') ||
+                          origin.startsWith('http://127.0.0.1:') ||
                           origin.endsWith('.netlify.app') || 
                           origin.endsWith('.dpdns.org');
 
