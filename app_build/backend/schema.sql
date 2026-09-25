@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS casos (
     telefono_contacto VARCHAR(15) NOT NULL,
     estado VARCHAR(50) DEFAULT 'Desaparecido' NOT NULL,
     foto_url VARCHAR(512) NOT NULL,
+    biometria_insightface JSONB,
+    vestimenta VARCHAR(512),
+    senas_particulares TEXT,
+    estatura_cm INT,
+    complexion VARCHAR(100),
+    condicion_medica TEXT,
+    lugar_frecuente VARCHAR(512),
     usuario_asignado_id INT REFERENCES usuarios(id) ON DELETE SET NULL,
     fecha_aceptacion TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

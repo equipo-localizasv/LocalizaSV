@@ -237,22 +237,36 @@ class AutonomousSurveillanceService {
 
       this.telemetry.realFacesDetected++;
 
-      // ================= FASE 2: EVALUACIÓN DE CASOS Y PARENTESCO =================
+      // ================= FASE 2: EVALUACIÓN DE CASOS Y PARENTESCO (MULTI-FACE ENGINE) =================
+      const facesInFrame = (scanResult.all_faces && scanResult.all_faces.length > 0)
+        ? scanResult.all_faces
+        : [scanResult];
+
       let bestMatch = null;
       let highestSimilarity = 0;
 
-      for (const caso of activeCases) {
-        const caseEmbedding = await this.getCaseEmbedding(caso);
-        if (!caseEmbedding) continue;
+      for (let faceIdx = 0; faceIdx < facesInFrame.length; faceIdx++) {
+        const currentFace = facesInFrame[faceIdx];
+        if (!currentFace.embedding_512d) continue;
 
-        const comp = insightFaceService.compareEmbeddings(
-          scanResult.embedding_512d,
-          caseEmbedding
-        );
+        for (const caso of activeCases) {
+          const caseEmbedding = await this.getCaseEmbedding(caso);
+          if (!caseEmbedding) continue;
 
-        if (comp.percentage > highestSimilarity) {
-          highestSimilarity = comp.percentage;
-          bestMatch = { caso, comp };
+          const comp = insightFaceService.compareEmbeddings(
+            currentFace.embedding_512d,
+            caseEmbedding
+          );
+
+          if (comp.percentage > highestSimilarity) {
+            highestSimilarity = comp.percentage;
+            bestMatch = {
+              caso,
+              comp,
+              face: currentFace,
+              faceIndex: faceIdx
+            };
+          }
         }
       }
 
@@ -263,7 +277,9 @@ class AutonomousSurveillanceService {
           cam_nombre: cam.nombre,
           timestamp: new Date().toISOString(),
           face_detected: true,
-          confidence: scanResult.confidence,
+          total_faces_in_frame: facesInFrame.length,
+          multi_face: facesInFrame.length > 1,
+          confidence: bestMatch ? bestMatch.face.confidence : scanResult.confidence,
           best_match_name: bestMatch ? bestMatch.caso.nombre_desaparecido : null,
           similarity: highestSimilarity,
           threshold: this.similarityThreshold,
@@ -295,12 +311,17 @@ class AutonomousSurveillanceService {
       this.cooldowns.set(cooldownKey, Date.now());
       this.telemetry.presumedMatchesFound++;
 
-      // Generar imagen de evidencia anotada con recuadro pericial verde y landmarks
+      // Generar imagen de evidencia anotada con recuadro pericial verde, HUD táctico y metadatos
       const evidenceFilename = `evidencia-ia-caso${bestMatch.caso.id}-cam${cam.id}-${Date.now()}.jpg`;
       const evidenceFilePath = path.join(this.uploadsDir, evidenceFilename);
       const evidenceUrl = `/uploads/${evidenceFilename}`;
 
-      await insightFaceService.scanFace(tempFilePath, evidenceFilePath);
+      await insightFaceService.scanFace(tempFilePath, {
+        annotatedOutputPath: evidenceFilePath,
+        matchName: bestMatch.caso.nombre_desaparecido,
+        matchSimilarity: highestSimilarity,
+        matchedFaceIndex: bestMatch.faceIndex
+      });
 
       if (!fs.existsSync(evidenceFilePath) && fs.existsSync(tempFilePath)) {
         fs.copyFileSync(tempFilePath, evidenceFilePath);

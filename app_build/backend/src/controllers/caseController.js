@@ -42,8 +42,20 @@ const createCase = async (req, res) => {
     try {
       biometria = await insightFaceService.scanFace(foto_url);
     } catch (bioErr) {
-      console.warn('[InsightFace] No se pudo completar el escaneo automático:', bioErr.message);
+      console.warn('[InsightFace] No se pudo completar el escaneo automático del archivo:', bioErr.message);
     }
+
+    if (!biometria && req.body.biometria_insightface) {
+      try {
+        biometria = typeof req.body.biometria_insightface === 'string' 
+          ? JSON.parse(req.body.biometria_insightface) 
+          : req.body.biometria_insightface;
+      } catch (e) {
+        biometria = null;
+      }
+    }
+
+    const biometriaValue = biometria ? (typeof biometria === 'string' ? biometria : JSON.stringify(biometria)) : null;
 
     const result = await db.query(
       `INSERT INTO casos (
@@ -62,7 +74,7 @@ const createCase = async (req, res) => {
         descripcion,
         telefono_contacto,
         foto_url,
-        biometria ? biometria : null,
+        biometriaValue,
         vestimenta || null,
         senas_particulares || null,
         estatura_cm ? parseInt(estatura_cm) : null,
