@@ -278,11 +278,20 @@ const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
                     alignItems: 'center',
                     marginBottom: '1rem',
                     borderBottom: '1px solid rgba(255,255,255,0.08)',
-                    paddingBottom: '0.5rem'
+                    paddingBottom: '0.5rem',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem'
                   }}>
-                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                      Casos comparados: <strong style={{ color: '#fff' }}>{results.total_compared}</strong>
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                        Casos comparados: <strong style={{ color: '#fff' }}>{results.total_compared}</strong>
+                      </span>
+                      {results.multi_face_query && (
+                        <span style={{ fontSize: '0.72rem', color: '#00f0ff', background: 'rgba(0, 240, 255, 0.1)', border: '1px solid rgba(0, 240, 255, 0.3)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                          👥 {results.total_faces_in_query} rostros evaluados
+                        </span>
+                      )}
+                    </div>
                     <span className="cyber-badge-cyan">
                       TOP COINCIDENCIAS
                     </span>
@@ -306,7 +315,6 @@ const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
                               padding: '0.85rem',
                               display: 'flex',
                               alignItems: 'center',
-                              justifyContent: 'space-between',
                               gap: '1rem'
                             }}
                           >
@@ -319,15 +327,20 @@ const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
                                   height: '54px',
                                   borderRadius: '8px',
                                   objectFit: 'cover',
-                                  border: `1px solid ${badgeColor}`
+                                  border: `2px solid ${badgeColor}`
                                 }}
                               />
                               <div>
                                 <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.95rem' }}>
                                   #{match.caso_id} • {match.nombre_desaparecido}
                                 </div>
-                                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                                  📍 {match.departamento} • {match.edad} años • Estado: {match.estado}
+                                <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.15rem' }}>
+                                  📍 {match.departamento || 'El Salvador'} • {match.edad} años • Estado: {match.estado}
+                                  {results.multi_face_query && match.matched_query_face_index !== undefined && (
+                                    <span style={{ marginLeft: '0.5rem', color: '#38bdf8' }}>
+                                      (Match en Rostro #{match.matched_query_face_index + 1})
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>

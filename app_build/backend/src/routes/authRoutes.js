@@ -1,20 +1,44 @@
 const express = require('express');
 const router = express.Router();
-const authController = require('../controllers/authController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const upload = require('../middlewares/uploadMiddleware');
-const contentFilterMiddleware = require('../middlewares/contentFilterMiddleware');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
-// User Registration with single selfie upload
-router.post('/register', upload.single('selfie'), authController.register);
+const { register, login, getMe, updateProfile } = require('../controllers/authController');
 
-// User Login
-router.post('/login', express.json(), authController.login);
+const uploadsDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
-// Get currently logged-in user profile details (protected)
-router.get('/me', authMiddleware, authController.getMe);
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadsDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname) || '.jpg';
+        cb(null, 'selfie-' + uniqueSuffix + ext);
+    }
+});
 
-// Update user profile (protected, with text/image filtering)
-router.put('/profile', authMiddleware, upload.single('selfie'), contentFilterMiddleware, authController.updateProfile);
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('El archivo subido debe ser una imagen válida (JPG, PNG, JPEG).'), false);
+    }
+};
+
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 }, 
+    fileFilter
+});
+
+router.post('/register', upload.single('selfie'), register);
+router.post('/login', login);
+router.get('/me', getMe);
+router.put('/profile', upload.single('selfie'), updateProfile);
 
 module.exports = router;

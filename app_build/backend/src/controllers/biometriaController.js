@@ -95,20 +95,24 @@ const searchBiometricDatabase = async (req, res) => {
       });
     }
 
-    // 1. Escanear la imagen objetivo con InsightFace
+    // 1. Escanear la imagen objetivo con InsightFace Ultra (Multi-Face)
     const targetBiometrics = await insightFaceService.scanFace(queryImagePath);
-    if (!targetBiometrics.face_detected || !targetBiometrics.embedding_512d) {
+    if (!targetBiometrics.face_detected || (!targetBiometrics.embedding_512d && (!targetBiometrics.all_faces || targetBiometrics.all_faces.length === 0))) {
       return res.status(400).json({
-        error: 'No se detectó un rostro válido en la imagen proporcionada.',
+        error: 'No se detectó un rostro humano válido en la imagen proporcionada.',
         biometrics: targetBiometrics
       });
     }
+
+    const facesInQuery = (targetBiometrics.all_faces && targetBiometrics.all_faces.length > 0)
+      ? targetBiometrics.all_faces
+      : [targetBiometrics];
 
     // 2. Obtener todos los casos activos
     const casesRes = await db.query('SELECT * FROM casos');
     const allCases = casesRes.rows || [];
 
-    // 3. Comparar contra cada caso
+    // 3. Comparar cada rostro de la imagen de consulta contra cada caso en base de datos
     const results = [];
 
     for (const caso of allCases) {
@@ -120,35 +124,62 @@ const searchBiometricDatabase = async (req, res) => {
           const parsed = typeof caso.biometria_insightface === 'string' 
             ? JSON.parse(caso.biometria_insightface) 
             : caso.biometria_insightface;
-          caseEmbedding = parsed.embedding_512d;
+          caseEmbedding = parsed.embedding_512d || parsed;
         } catch (e) {}
       }
 
-      // Si no tenía embedding pre-calculado, lo extraemos
+      // Si no tenía embedding pre-calculado, lo extraemos y lo persistimos en la base de datos
       if (!caseEmbedding) {
-        const bio = await insightFaceService.scanFace(caso.foto_url);
-        caseEmbedding = bio.embedding_512d;
+        try {
+          const bio = await insightFaceService.scanFace(caso.foto_url);
+          if (bio && bio.face_detected && bio.embedding_512d) {
+            caseEmbedding = bio.embedding_512d;
+            // Persistir de forma transparente para acelerar búsquedas futuras
+            db.query('UPDATE casos SET biometria_insightface = $1 WHERE id = $2', [JSON.stringify(bio), caso.id]).catch(() => {});
+          }
+        } catch (scanErr) {
+          console.warn(`[BiometriaController] Error indexando caso ${caso.id}:`, scanErr.message);
+        }
       }
 
       if (caseEmbedding) {
-        const comparison = insightFaceService.compareEmbeddings(
-          targetBiometrics.embedding_512d,
-          caseEmbedding
-        );
+        // Encontrar la mejor coincidencia entre todos los rostros de la foto subida
+        let bestFaceComp = null;
+        let bestFaceIdx = 0;
 
-        results.push({
-          caso_id: caso.id,
-          nombre_desaparecido: caso.nombre_desaparecido,
-          foto_url: caso.foto_url,
-          edad: caso.edad,
-          departamento: caso.ubicacion_desaparicion,
-          estado: caso.estado,
-          similarity_percentage: comparison.percentage,
-          euclidean_distance: comparison.euclidean_distance,
-          match: comparison.match,
-          verdict: comparison.verdict,
-          confidence_label: comparison.confidence_label
-        });
+        for (let qIdx = 0; qIdx < facesInQuery.length; qIdx++) {
+          const qFace = facesInQuery[qIdx];
+          if (!qFace.embedding_512d) continue;
+
+          const comp = insightFaceService.compareEmbeddings(
+            qFace.embedding_512d,
+            caseEmbedding
+          );
+
+          if (!bestFaceComp || comp.percentage > bestFaceComp.percentage) {
+            bestFaceComp = comp;
+            bestFaceIdx = qIdx;
+          }
+        }
+
+        if (bestFaceComp) {
+          results.push({
+            caso_id: caso.id,
+            nombre_desaparecido: caso.nombre_desaparecido,
+            foto_url: caso.foto_url,
+            edad: caso.edad,
+            departamento: caso.ubicacion_desaparicion,
+            estado: caso.estado,
+            matched_query_face_index: bestFaceIdx,
+            matched_query_face_bbox: facesInQuery[bestFaceIdx]?.bbox,
+            similarity_percentage: bestFaceComp.percentage,
+            raw_cosine: bestFaceComp.raw_cosine,
+            euclidean_distance: bestFaceComp.euclidean_distance,
+            match: bestFaceComp.match,
+            verdict: bestFaceComp.verdict,
+            confidence_label: bestFaceComp.confidence_label
+          });
+        }
       }
     }
 
@@ -159,6 +190,8 @@ const searchBiometricDatabase = async (req, res) => {
       success: true,
       query_image: queryImagePath,
       query_biometrics: targetBiometrics,
+      total_faces_in_query: facesInQuery.length,
+      multi_face_query: facesInQuery.length > 1,
       total_compared: results.length,
       top_matches: results.slice(0, 5),
       all_results: results

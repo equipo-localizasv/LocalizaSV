@@ -4,7 +4,6 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const http = require('http');
-const WebSocket = require('ws');
 require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
@@ -19,62 +18,104 @@ const biometriaRoutes = require('./routes/biometriaRoutes');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Global Middlewares
+// Configuración de Helmet ajustada
 app.use(helmet({
-  crossOriginResourcePolicy: false // Allows serving static uploaded images across origins
+    crossOriginResourcePolicy: false
 }));
-app.use(cors({
-  origin: '*', // Open to local client requests
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+
+const allowedOrigins = [
+    'https://localizasv.dpdns.org',
+    'https://www.localizasv.dpdns.org',
+    'http://localhost:5173',
+    'http://localhost:3000'
+];
+
+// Opciones de CORS optimizadas
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Permitir peticiones sin origen (Postman, curl, Server-to-Server)
+        if (!origin) return callback(null, true);
+
+        // Verificar orígenes permitidos o subdominios
+        const isAllowed = allowedOrigins.includes(origin) || 
+                          origin.startsWith('http://localhost:') ||
+                          origin.startsWith('http://127.0.0.1:') ||
+                          origin.endsWith('.netlify.app') || 
+                          origin.endsWith('.dpdns.org');
+
+        if (isAllowed) {
+            return callback(null, true);
+        } else {
+            console.warn(`⚠️ [CORS] Origen bloqueado: ${origin}`);
+            // Regresar false evita que Express lance un error 500 sin cabeceras
+            return callback(null, false);
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+// Aplicar CORS globalmente y responder a peticiones Preflight (OPTIONS)
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static files directory for uploaded images
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
-app.use('/api/casos', caseRoutes); // Soporte bilingüe / según especificación del plan maestro
+app.use('/api/casos', caseRoutes); 
 app.use('/api/detecciones', detectionRoutes);
 app.use('/api/alertas', alertRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/camaras', cameraRoutes);
 app.use('/api/avistamientos', sightingRoutes);
-app.use('/api/biometria', biometriaRoutes);
+if (biometriaRoutes) {
+    app.use('/api/biometria', biometriaRoutes);
+}
 
-
-
-// Base route for API status check
 app.get('/', (req, res) => {
-  res.json({ message: 'LocalizaSV API running with WebSocket support' });
+    res.json({ message: 'LocalizaSV API running with WebSocket support' });
 });
 
-// Error handling middleware
+app.use((req, res, next) => {
+    res.status(404).json({ 
+        error: 'Ruta no encontrada', 
+        path: req.originalUrl 
+    });
+});
+
+// Manejador de errores global asegurando cabecera CORS
 app.use((err, req, res, next) => {
-  console.error('API Error:', err.message || err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal Server Error' });
+    console.error('API Error:', err.message || err);
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.status(err.status || 500).json({ 
+        error: err.message || 'Internal Server Error' 
+    });
 });
 
-// Server & WebSocket Initialization
 const server = http.createServer(app);
 const { initWebSocketServer, broadcast } = require('./wsServer');
 const surveillanceService = require('./services/surveillanceService');
 
-if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT} with WebSocket support.`);
-  });
-  initWebSocketServer(server);
-  surveillanceService.setWebSocketBroadcaster(broadcast);
-  surveillanceService.start();
+server.listen(PORT, () => {
+    console.log(`🚀 Servidor ejecutándose en puerto ${PORT} en modo ${process.env.NODE_ENV || 'development'}`);
+});
+
+try {
+    initWebSocketServer(server);
+    surveillanceService.setWebSocketBroadcaster(broadcast);
+    surveillanceService.start();
+} catch (wsErr) {
+    console.warn('Advertencia al iniciar servicios secundarios:', wsErr.message);
 }
 
 module.exports = app;
 module.exports.server = server;
 module.exports.broadcast = broadcast;
-
-
