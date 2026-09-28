@@ -29,7 +29,8 @@ class InsightFaceService {
     if (!this.pythonAvailable) return;
 
     try {
-      this.worker = spawn('python', [this.pythonScript, '--worker'], {
+      const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
+      this.worker = spawn(pythonCmd, [this.pythonScript, '--worker'], {
         cwd: this.backendRoot,
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -195,8 +196,9 @@ class InsightFaceService {
     if (matchName) args.push(matchName);
     if (matchSimilarity !== null && matchSimilarity !== undefined) args.push(String(matchSimilarity));
 
+    const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
     return new Promise((resolve) => {
-      execFile('python', args, { timeout: 12000 }, (err, stdout, stderr) => {
+      execFile(pythonCmd, args, { timeout: 12000 }, (err, stdout, stderr) => {
         if (err) {
           console.error('[InsightFace] Error ejecutando script python (fallback):', err.message);
           return resolve({
