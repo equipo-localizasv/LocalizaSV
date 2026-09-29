@@ -185,9 +185,10 @@ class AutonomousSurveillanceService {
         const { execFile } = require('child_process');
         const snapScript = path.join(__dirname, '../../scripts/rtsp_snapshot.py');
         const targetRtsp = snapshotUrl.startsWith('rtsp://') ? snapshotUrl : cam.stream_url;
+        const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
 
         await new Promise((resolve) => {
-          execFile('python', [snapScript, targetRtsp, tempFilePath], { timeout: 3500 }, () => {
+          execFile(pythonCmd, [snapScript, targetRtsp, tempFilePath], { timeout: 3500 }, () => {
             resolve();
           });
         });

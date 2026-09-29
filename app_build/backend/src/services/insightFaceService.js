@@ -29,7 +29,7 @@ class InsightFaceService {
     if (!this.pythonAvailable) return;
 
     try {
-      const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
+      const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
       this.worker = spawn(pythonCmd, [this.pythonScript, '--worker'], {
         cwd: this.backendRoot,
         stdio: ['pipe', 'pipe', 'pipe']
@@ -202,7 +202,7 @@ class InsightFaceService {
     if (matchName) args.push(matchName);
     if (matchSimilarity !== null && matchSimilarity !== undefined) args.push(String(matchSimilarity));
 
-    const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
+      const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
     return new Promise((resolve) => {
       execFile(pythonCmd, args, { timeout: 12000 }, (err, stdout, stderr) => {
         if (err) {
