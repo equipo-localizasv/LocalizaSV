@@ -384,18 +384,20 @@ const proxySnapshot = async (req, res) => {
       const snapScript = path.join(__dirname, '../../scripts/rtsp_snapshot.py');
       const targetRtsp = snapshotUrl.startsWith('rtsp://') ? snapshotUrl : cam.stream_url;
       const tempSnap = path.join(__dirname, `../../uploads/snap_cam_${id}_${Date.now()}.jpg`);
+      const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
 
-      return execFile('python', [snapScript, targetRtsp, tempSnap], { timeout: 8000 }, (err) => {
+      return execFile(pythonCmd, [snapScript, targetRtsp, tempSnap], { timeout: 8000 }, (err) => {
         if (err || !fs.existsSync(tempSnap)) {
           return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
         }
         try {
           const buffer = fs.readFileSync(tempSnap);
-          fs.unlinkSync(tempSnap);
+          try { fs.unlinkSync(tempSnap); } catch (e) {}
           res.set('Content-Type', 'image/jpeg');
           res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
           return res.send(buffer);
         } catch (readErr) {
+          try { if (fs.existsSync(tempSnap)) fs.unlinkSync(tempSnap); } catch (e) {}
           return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
         }
       });
@@ -479,7 +481,8 @@ const proxyStream = async (req, res) => {
     if (streamUrl.startsWith('rtsp://')) {
       const { spawn } = require('child_process');
       const streamerScript = path.join(__dirname, '../../scripts/rtsp_streamer.py');
-      const child = spawn('python', [streamerScript, streamUrl, '15', '65']);
+      const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
+      const child = spawn(pythonCmd, [streamerScript, streamUrl, '15', '65']);
 
       res.writeHead(200, {
         'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',

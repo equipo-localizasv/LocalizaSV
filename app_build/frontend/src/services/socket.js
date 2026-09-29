@@ -10,12 +10,30 @@ class SocketService {
     this.token = null;
     this.reconnectTimer = null;
 
-    // URL dinámica para desarrollo y producción
-    const defaultWsUrl = window.location.protocol === 'https:'
-      ? 'wss://localizasv-production.up.railway.app/ws'
-      : 'ws://localhost:3001/ws';
+    // URL dinámica e inteligente para desarrollo, redes locales, dominios DDNS y producción
+    const getWsBaseUrl = () => {
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) {
+        return import.meta.env.VITE_WS_URL;
+      }
+      if (typeof window !== 'undefined' && window.location) {
+        const isHttps = window.location.protocol === 'https:';
+        const proto = isHttps ? 'wss:' : 'ws:';
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${proto}//${hostname}:3001`;
+        }
+        if (hostname.endsWith('.dpdns.org')) {
+          return `${proto}//${hostname}`;
+        }
+        if (hostname.includes('railway') || hostname.includes('netlify')) {
+          return 'wss://localizasv-production.up.railway.app';
+        }
+        return `${proto}//${window.location.host}`;
+      }
+      return 'ws://localhost:3001';
+    };
 
-    this.url = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) || defaultWsUrl;
+    this.url = getWsBaseUrl();
   }
 
   /**

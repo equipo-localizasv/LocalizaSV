@@ -54,6 +54,17 @@
       "selfie_url": "/uploads/selfie-1789407880241-192302706.jpg",
       "rol": "autoridad",
       "created_at": "2026-09-14T17:44:40.490Z"
+    },
+    {
+      "id": 7,
+      "nombre": "Marxd",
+      "dui": "96876576-8",
+      "email": "nfsshif2epico@gmail.com",
+      "telefono": "7000-8909",
+      "password_hash": "$2a$10$9DIoIE4Nh.tQZGjB5lj4WOc8a3Slkjcuf3DFxKZ.2/rfXYOmp7Rze",
+      "selfie_url": "/uploads/selfie-1790608956848-194797698.jfif",
+      "rol": "autoridad",
+      "created_at": "2026-09-28T15:22:37.225Z"
     }
   ],
   "casos": [

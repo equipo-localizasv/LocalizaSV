@@ -29,7 +29,8 @@ class InsightFaceService {
     if (!this.pythonAvailable) return;
 
     try {
-      this.worker = spawn('python', [this.pythonScript, '--worker'], {
+      const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
+      this.worker = spawn(pythonCmd, [this.pythonScript, '--worker'], {
         cwd: this.backendRoot,
         stdio: ['pipe', 'pipe', 'pipe']
       });
@@ -153,7 +154,7 @@ class InsightFaceService {
     }
 
     // Ruta ultra rápida vía Worker persistente en memoria (~15ms)
-    if (this.worker && this.isWorkerReady && !this.worker.killed) {
+    if (this.worker && this.isWorkerReady && !this.worker.killed && this.worker.stdin && this.worker.stdin.writable) {
       const id = this.reqSeq++;
       return new Promise((resolve) => {
         const timer = setTimeout(() => {
@@ -172,7 +173,13 @@ class InsightFaceService {
           match_similarity: matchSimilarity,
           matched_face_index: matchedFaceIndex
         }) + '\n';
-        this.worker.stdin.write(payload);
+        try {
+          this.worker.stdin.write(payload);
+        } catch (writeErr) {
+          clearTimeout(timer);
+          this.pendingCallbacks.delete(id);
+          this.fallbackScan(resolvedPath, annotatedOutputPath, matchName, matchSimilarity, matchedFaceIndex).then(resolve);
+        }
       });
     }
 
@@ -195,8 +202,9 @@ class InsightFaceService {
     if (matchName) args.push(matchName);
     if (matchSimilarity !== null && matchSimilarity !== undefined) args.push(String(matchSimilarity));
 
+      const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
     return new Promise((resolve) => {
-      execFile('python', args, { timeout: 12000 }, (err, stdout, stderr) => {
+      execFile(pythonCmd, args, { timeout: 12000 }, (err, stdout, stderr) => {
         if (err) {
           console.error('[InsightFace] Error ejecutando script python (fallback):', err.message);
           return resolve({
@@ -338,6 +346,21 @@ class InsightFaceService {
       faceA,
       faceB,
       comparison: comp
+    };
+  }
+
+  /**
+   * Alias simplificado para cotejo entre 2 imágenes retornando porcentaje directo
+   */
+  async compareFaces(image1Path, image2Path) {
+    const result = await this.compareFacesFull(image1Path, image2Path);
+    return {
+      success: true,
+      similarity_percent: result.comparison.percentage,
+      match: result.comparison.match,
+      verdict: result.comparison.verdict,
+      confidence_label: result.comparison.confidence_label,
+      details: result
     };
   }
 
