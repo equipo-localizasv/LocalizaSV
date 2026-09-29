@@ -776,7 +776,35 @@ const mockQuery = (text, params = []) => {
     return { rows: [] };
   }
 
-  // 25. DELETE FROM camaras
+  // 25. UPDATE camaras estado
+  if (normalizedText.includes('UPDATE camaras SET estado = $1 WHERE id = $2')) {
+    if (!db.camaras) db.camaras = [];
+    const [estado, id] = params;
+    const cam = db.camaras.find(c => c.id === parseInt(id));
+    if (cam) {
+      cam.estado = estado;
+      writeMockDb(db);
+      return { rows: [cam] };
+    }
+    return { rows: [] };
+  }
+
+  // 26. UPDATE camaras pan / tilt / patrullaje
+  if (normalizedText.includes('UPDATE camaras SET pan = $1') || normalizedText.includes('UPDATE camaras SET tilt = $1') || normalizedText.includes('UPDATE camaras SET patrullaje_activo = $1')) {
+    if (!db.camaras) db.camaras = [];
+    const id = parseInt(params[params.length - 1]);
+    const cam = db.camaras.find(c => c.id === id);
+    if (cam) {
+      if (normalizedText.includes('tilt = $1')) cam.tilt = parseInt(params[0]);
+      if (normalizedText.includes('pan = $1')) cam.pan = parseInt(params[0]);
+      if (normalizedText.includes('patrullaje_activo = $1')) cam.patrullaje_activo = Boolean(params[0]);
+      writeMockDb(db);
+      return { rows: [cam] };
+    }
+    return { rows: [] };
+  }
+
+  // 27. DELETE FROM camaras
   if (normalizedText.includes('DELETE FROM camaras WHERE id = $1')) {
     if (!db.camaras) db.camaras = [];
     const id = parseInt(params[0]);

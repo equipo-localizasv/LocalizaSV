@@ -17,8 +17,9 @@ const MobileCameraTransmitter = () => {
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
   const frameCountRef = useRef(0);
+  const isUploadingRef = useRef(false);
 
-  // Cargar lista de cámaras
+  // Cargar lista de cámaras y limpiar cámara al desmontar
   useEffect(() => {
     api.get('/camaras')
       .then(res => {
@@ -36,6 +37,13 @@ const MobileCameraTransmitter = () => {
         () => {}
       );
     }
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
   // Calcular FPS cada segundo
@@ -69,6 +77,7 @@ const MobileCameraTransmitter = () => {
       setStatusMsg('Transmisión C4I Activa en Tiempo Real');
 
       // Bucle de captura y envío de fotogramas (cada 400ms = 2.5 FPS suficiente para reconocimiento facial C4I ultra fluido)
+      if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(captureAndSendFrame, 400);
     } catch (err) {
       console.error('Error al abrir cámara:', err);
@@ -77,10 +86,15 @@ const MobileCameraTransmitter = () => {
   };
 
   const stopTransmission = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
+    isUploadingRef.current = false;
     setTransmitting(false);
     setStatusMsg('Transmisión pausada');
   };
@@ -95,7 +109,7 @@ const MobileCameraTransmitter = () => {
   };
 
   const captureAndSendFrame = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current || isUploadingRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (video.videoWidth === 0 || video.videoHeight === 0) return;
@@ -109,6 +123,7 @@ const MobileCameraTransmitter = () => {
     // Comprimir en JPEG calidad 0.65 (rápido y liviano)
     const base64Data = canvas.toDataURL('image/jpeg', 0.65);
 
+    isUploadingRef.current = true;
     const startT = Date.now();
     try {
       await api.post(`/camaras/${selectedCamId}/frame`, { image: base64Data });
@@ -117,7 +132,9 @@ const MobileCameraTransmitter = () => {
       frameCountRef.current += 1;
       setFramesSent(prev => prev + 1);
     } catch (err) {
-      // Error silencioso en transmisión
+      // Error transitorio de red ignorado para no interrumpir el flujo
+    } finally {
+      isUploadingRef.current = false;
     }
   };
 

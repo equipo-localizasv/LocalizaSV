@@ -455,19 +455,38 @@ const proxyStream = async (req, res) => {
             'Connection': 'close',
             'Pragma': 'no-cache'
           });
+
+          let isStreamActive = true;
+          const cleanUpStream = () => {
+            if (!isStreamActive) return;
+            isStreamActive = false;
+            clearInterval(interval);
+          };
+
           const interval = setInterval(() => {
+            if (!isStreamActive || res.writableEnded || res.destroyed) {
+              cleanUpStream();
+              return;
+            }
             try {
               if (!fs.existsSync(mobileFramePath)) return;
               const frame = fs.readFileSync(mobileFramePath);
-              res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
-              res.write(frame);
-              res.write('\r\n');
+              if (frame && frame.length > 0) {
+                res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
+                res.write(frame);
+                res.write('\r\n');
+              }
             } catch (err) {
-              clearInterval(interval);
+              // Si el archivo estaba en escritura momentánea, continuamos en el siguiente tick
+              if (res.writableEnded || res.destroyed) {
+                cleanUpStream();
+              }
             }
           }, 350);
 
-          req.on('close', () => clearInterval(interval));
+          req.on('close', cleanUpStream);
+          res.on('error', cleanUpStream);
+          req.on('end', cleanUpStream);
           return;
         }
       } catch (e) {}
