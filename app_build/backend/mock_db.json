@@ -3636,17 +3636,18 @@
       "ubicacion": "San Salvador Centro, El Salvador",
       "lat": 13.6929,
       "lng": -89.2182,
-      "ip_address": "192.168.1.95:8080",
-      "base_url": "http://192.168.1.95:8080",
-      "stream_url": "http://192.168.1.95:8080/video",
-      "snapshot_url": "http://192.168.1.95:8080/shot.jpg",
+      "stream_url": "http://100.84.94.51/video",
+      "snapshot_url": "http://100.84.94.51/shot.jpg",
+      "base_url": "http://100.84.94.51",
+      "ip_address": "100.84.94.51",
       "tipo": "Cámara IP Wi-Fi PTZ 360° (Robótica / Domo)",
       "resolucion": "1080p FHD",
       "fps": 30,
+      "estado": "activa",
       "linterna": false,
       "zoom": 0,
-      "estado": "activa",
-      "ultima_actividad": "2026-09-25T19:58:12.512Z"
+      "created_at": "2026-09-28T10:00:00.000Z",
+      "ultima_actividad": "2026-09-28T16:47:32.034Z"
     }
   ],
   "tokens_fcm": [

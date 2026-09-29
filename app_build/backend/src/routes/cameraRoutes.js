@@ -13,6 +13,7 @@ router.get('/:id/ping', cameraController.pingCamera);
 router.get('/:id/stream', cameraController.proxyStream);
 router.post('/:id/control', cameraController.controlCamera);
 router.get('/:id/snapshot', cameraController.proxySnapshot);
+router.post('/:id/frame', cameraController.uploadCameraFrame);
 router.post('/:id/autovigilancia', cameraController.toggleSurveillance);
 router.get('/autovigilancia/status', cameraController.getSurveillanceStatus);
 router.post('/autovigilancia/threshold', cameraController.setSurveillanceThreshold);

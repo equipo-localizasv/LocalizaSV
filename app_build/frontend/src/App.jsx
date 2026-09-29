@@ -14,6 +14,7 @@ import CaseDetail from './pages/CaseDetail';
 import ModeratorPanel from './pages/ModeratorPanel';
 import AuthorityPanel from './pages/AuthorityPanel';
 import Profile from './pages/Profile';
+import MobileCameraTransmitter from './pages/MobileCameraTransmitter';
 
 export const AuthContext = createContext(null);
 
@@ -213,6 +214,10 @@ const App = () => {
                   </RoleRoute>
                 } 
               />
+
+              {/* Transmisor de Cámara Móvil C4I (Universal para cualquier teléfono o laptop) */}
+              <Route path="/transmisor" element={<MobileCameraTransmitter />} />
+              <Route path="/camara-movil" element={<MobileCameraTransmitter />} />
 
               {/* Redirección comodín según rol */}
               <Route path="*" element={<HomeRoute user={user} />} />

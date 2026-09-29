@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import api from '../services/api';
+import api, { getServerBaseUrl } from '../services/api';
 import socketService from '../services/socket';
 import ActiveAlertsMap from '../components/ActiveAlertsMap';
 import BiometricVerificationModal from '../components/BiometricVerificationModal';
@@ -60,6 +60,8 @@ const ModeratorPanel = () => {
 
   // Modal para conectar nueva cámara (PTZ Wi-Fi / IP Webcam)
   const [showAddCamModal, setShowAddCamModal] = useState(false);
+  const [showMobileLinkModal, setShowMobileLinkModal] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [newCamForm, setNewCamForm] = useState({
     nombre: 'Cámara Robótica PTZ Wi-Fi 01',
     ip_address: '192.168.1.75:8080',
@@ -393,7 +395,7 @@ const ModeratorPanel = () => {
 
       if (res.data.captured_image_url) {
         setCaptureNotice(`📸 Fotograma capturado con éxito: ${res.data.captured_image_url}`);
-        setPreviewImage(`http://localhost:3001${res.data.captured_image_url}`);
+        setPreviewImage(`${getServerBaseUrl()}${res.data.captured_image_url}`);
         setTimeout(() => setCaptureNotice(''), 6000);
       } else {
         const ptzLabels = {
@@ -580,7 +582,7 @@ const ModeratorPanel = () => {
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    return `http://localhost:3001${path}`;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   const formatDate = (dateStr) => {
@@ -644,6 +646,26 @@ const ModeratorPanel = () => {
           </div>
 
           <button
+            onClick={() => setShowMobileLinkModal(true)}
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              boxShadow: '0 4px 15px rgba(16, 185, 129, 0.35)',
+              cursor: 'pointer'
+            }}
+          >
+            <span>📱</span>
+            <span>Transmitir desde Celular (Cualquier Wi-Fi / 4G)</span>
+          </button>
+
+          <button
             onClick={() => setShowAddCamModal(true)}
             className="btn btn-primary"
             style={{
@@ -656,7 +678,7 @@ const ModeratorPanel = () => {
             }}
           >
             <span>📹</span>
-            <span>Conectar Cámara IP Webcam</span>
+            <span>Conectar Cámara IP / Wi-Fi</span>
           </button>
         </div>
       </div>
@@ -1036,7 +1058,7 @@ const ModeratorPanel = () => {
                 const camBase = cam.base_url || (cam.ip_address ? `http://${cam.ip_address}` : '');
                 const isStreamFailed = Boolean(camStreamErrors[cam.id]);
                 const directStreamUrl = cam.stream_url || `${camBase}/video`;
-                const proxyStreamUrl = `http://localhost:3001/api/camaras/${cam.id}/stream`;
+                const proxyStreamUrl = `${getServerBaseUrl()}/api/camaras/${cam.id}/stream`;
                 const videoStreamUrl = isStreamFailed ? directStreamUrl : proxyStreamUrl;
                 const status = camStatus[cam.id] || { online: true, latency_ms: null, testing: false };
                 const isFocused = focusedCameraId === cam.id;
@@ -2569,6 +2591,139 @@ const ModeratorPanel = () => {
         <BiometricLab cases={cases} alerts={alerts} />
       )}
 
+      {/* ================= MODAL: ENLACE TRANSMISOR MÓVIL DIRECTO ================= */}
+      {showMobileLinkModal && (
+        <div className="modal-overlay animate-fade-in" style={{ zIndex: 12000 }}>
+          <div
+            className="glass-panel"
+            style={{
+              maxWidth: '560px',
+              width: '100%',
+              padding: '2rem',
+              background: 'rgba(15, 23, 42, 0.98)',
+              border: '1px solid #10b981',
+              borderRadius: '16px',
+              boxShadow: '0 25px 60px rgba(16, 185, 129, 0.25)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.8rem' }}>📱</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#fff' }}>
+                    Transmisor Móvil Táctico C4I
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+                    Transmite desde cualquier celular sin aplicaciones externas ni bloqueos de red
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMobileLinkModal(false)}
+                className="btn btn-secondary"
+                style={{ padding: '0.35rem 0.75rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '10px',
+              padding: '1rem',
+              marginBottom: '1.5rem',
+              fontSize: '0.88rem',
+              lineHeight: '1.5',
+              color: '#d1fae5'
+            }}>
+              <strong>💡 ¿Cómo funciona?</strong>
+              <p style={{ margin: '0.4rem 0 0 0' }}>
+                Abre el siguiente enlace en <strong>Google Chrome o Safari en tu teléfono celular</strong> (funciona con cualquier red Wi-Fi o datos móviles 4G/5G).
+                Tu teléfono solicitará permiso de cámara y comenzará a transmitir video en alta definición directamente a este Centro de Mando, activando el reconocimiento facial de personas desaparecidas en tiempo real.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
+                Enlace para abrir en tu celular:
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`http://${window.location.hostname === 'localhost' ? '172.16.2.60' : window.location.hostname}:5173/transmisor`}
+                  style={{
+                    flex: 1,
+                    background: '#090d16',
+                    border: '1px solid #10b981',
+                    borderRadius: '8px',
+                    padding: '0.75rem 1rem',
+                    color: '#34d399',
+                    fontFamily: 'monospace',
+                    fontSize: '0.9rem',
+                    fontWeight: '700'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `http://${window.location.hostname === 'localhost' ? '172.16.2.60' : window.location.hostname}:5173/transmisor`;
+                    navigator.clipboard.writeText(url);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 3000);
+                  }}
+                  style={{
+                    background: copiedLink ? '#059669' : '#10b981',
+                    color: '#020617',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0 1.25rem',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {copiedLink ? '✓ Copiado' : 'Copiar'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  window.open('/transmisor', '_blank');
+                  setShowMobileLinkModal(false);
+                }}
+                className="btn btn-primary"
+                style={{
+                  flex: 1,
+                  padding: '0.85rem',
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span>💻</span>
+                <span>Probar con Webcam de esta PC</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMobileLinkModal(false)}
+                className="btn btn-secondary"
+                style={{ padding: '0.85rem 1.5rem' }}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================= MODAL: CONECTAR CÁMARA IP WEBCAM ================= */}
       {showAddCamModal && (
         <div className="modal-overlay animate-fade-in" style={{ zIndex: 12000 }}>
@@ -2781,7 +2936,7 @@ const ModeratorPanel = () => {
             {/* Video grande */}
             <div style={{ position: 'relative', height: '520px', background: '#000' }}>
               <img
-                src={`http://localhost:3001/api/camaras/${expandedCamera.id}/stream`}
+                src={`${getServerBaseUrl()}/api/camaras/${expandedCamera.id}/stream`}
                 alt={expandedCamera.nombre}
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                 onError={(e) => {
@@ -3111,7 +3266,7 @@ const ModeratorPanel = () => {
             {/* Pantalla del Reproductor Forense con Scanlines */}
             <div style={{ position: 'relative', height: '360px', background: '#000', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
               <img
-                src={`http://localhost:3001/api/camaras/${rewindCamera.id}/snapshot?t=${Date.now() - Math.round(rewindOffsetSec * 1000)}`}
+                src={`${getServerBaseUrl()}/api/camaras/${rewindCamera.id}/snapshot?t=${Date.now() - Math.round(rewindOffsetSec * 1000)}`}
                 alt="Fotograma Rebobinado"
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               />

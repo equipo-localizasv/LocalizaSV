@@ -35,7 +35,29 @@ const readMockDb = () => {
     if (!parsed.usuarios) parsed.usuarios = [];
     if (!parsed.casos) parsed.casos = [];
     if (!parsed.alertas) parsed.alertas = [];
-    if (!parsed.camaras) parsed.camaras = [];
+    if (!parsed.camaras || parsed.camaras.length === 0) {
+      parsed.camaras = [
+        {
+          id: 1,
+          nombre: "Cámara Móvil Teléfono (IP Webcam)",
+          ubicacion: "Patrulla Móvil PNC - Sector San Salvador",
+          lat: 13.6929,
+          lng: -89.2182,
+          stream_url: "http://172.16.2.243:8080/video",
+          snapshot_url: "http://172.16.2.243:8080/shot.jpg",
+          base_url: "http://172.16.2.243:8080",
+          ip_address: "172.16.2.243:8080",
+          tipo: "Cámara Móvil IP Webcam",
+          resolucion: "1080p FHD",
+          fps: 30,
+          estado: "activa",
+          linterna: false,
+          zoom: 0,
+          created_at: new Date().toISOString()
+        }
+      ];
+      writeMockDb(parsed);
+    }
     return parsed;
   } catch (err) {
     return { usuarios: [], casos: [], alertas: [] };
@@ -668,6 +690,99 @@ const mockQuery = (text, params = []) => {
       return { rows: [db.alertas[idx]] };
     }
     return { rows: [] };
+  }
+
+  // 20. Consultas de Cámaras
+  if (normalizedText.startsWith('SELECT * FROM camaras')) {
+    if (!db.camaras) db.camaras = [];
+    if (normalizedText.includes('WHERE id = $1')) {
+      const found = db.camaras.filter(c => c.id === parseInt(params[0]));
+      return { rows: found };
+    }
+    return { rows: [...db.camaras] };
+  }
+
+  // 21. INSERT INTO camaras
+  if (normalizedText.includes('INSERT INTO camaras')) {
+    if (!db.camaras) db.camaras = [];
+    const [nombre, ubicacion, lat, lng, streamUrl, tipo, resolucion, fps, estado, ip, snapshotUrl, baseUrl] = params;
+    const nextId = db.camaras.length > 0 ? Math.max(...db.camaras.map(c => c.id)) + 1 : 1;
+    const newCam = {
+      id: nextId,
+      nombre,
+      ubicacion: ubicacion || 'San Salvador, El Salvador',
+      lat: lat ? parseFloat(lat) : 13.6929,
+      lng: lng ? parseFloat(lng) : -89.2182,
+      stream_url: streamUrl,
+      tipo: tipo || 'Cámara Móvil IP Webcam',
+      resolucion: resolucion || '1080p FHD',
+      fps: fps ? parseInt(fps) : 30,
+      estado: estado || 'activa',
+      ip_address: ip,
+      snapshot_url: snapshotUrl,
+      base_url: baseUrl,
+      linterna: false,
+      zoom: 0,
+      created_at: new Date().toISOString()
+    };
+    db.camaras.push(newCam);
+    writeMockDb(db);
+    return { rows: [newCam] };
+  }
+
+  // 22. UPDATE camaras linterna
+  if (normalizedText.includes('UPDATE camaras SET linterna = $1 WHERE id = $2')) {
+    if (!db.camaras) db.camaras = [];
+    const [linterna, id] = params;
+    const cam = db.camaras.find(c => c.id === parseInt(id));
+    if (cam) {
+      cam.linterna = Boolean(linterna);
+      writeMockDb(db);
+      return { rows: [cam] };
+    }
+    return { rows: [] };
+  }
+
+  // 23. UPDATE camaras zoom
+  if (normalizedText.includes('UPDATE camaras SET zoom = $1 WHERE id = $2')) {
+    if (!db.camaras) db.camaras = [];
+    const [zoom, id] = params;
+    const cam = db.camaras.find(c => c.id === parseInt(id));
+    if (cam) {
+      cam.zoom = parseInt(zoom);
+      writeMockDb(db);
+      return { rows: [cam] };
+    }
+    return { rows: [] };
+  }
+
+  // 24. UPDATE camaras datos generales
+  if (normalizedText.includes('UPDATE camaras SET nombre = $1')) {
+    if (!db.camaras) db.camaras = [];
+    const [nombre, ubicacion, lat, lng, streamUrl, snapshotUrl, baseUrl, ip, id] = params;
+    const cam = db.camaras.find(c => c.id === parseInt(id));
+    if (cam) {
+      if (nombre) cam.nombre = nombre;
+      if (ubicacion) cam.ubicacion = ubicacion;
+      if (lat) cam.lat = parseFloat(lat);
+      if (lng) cam.lng = parseFloat(lng);
+      if (streamUrl) cam.stream_url = streamUrl;
+      if (snapshotUrl) cam.snapshot_url = snapshotUrl;
+      if (baseUrl) cam.base_url = baseUrl;
+      if (ip) cam.ip_address = ip;
+      writeMockDb(db);
+      return { rows: [cam] };
+    }
+    return { rows: [] };
+  }
+
+  // 25. DELETE FROM camaras
+  if (normalizedText.includes('DELETE FROM camaras WHERE id = $1')) {
+    if (!db.camaras) db.camaras = [];
+    const id = parseInt(params[0]);
+    db.camaras = db.camaras.filter(c => c.id !== id);
+    writeMockDb(db);
+    return { rowCount: 1, rows: [] };
   }
 
   console.warn('Unhandled mock query:', normalizedText, params);

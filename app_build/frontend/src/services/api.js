@@ -13,15 +13,42 @@ const getApiBaseUrl = () => {
       if (process.env.VITE_API_URL) return process.env.VITE_API_URL;
     }
   } catch (e) {}
-  // 3. Detección automática en desarrollo local
+  // 3. Detección automática en desarrollo local y red privada (LAN / Wi-Fi)
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:3001/api';
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('172.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.endsWith('.local')
+    ) {
+      return `http://${hostname}:3001/api`;
     }
   }
   // 4. URL de producción en Railway
   return 'https://localizasv-production.up.railway.app/api';
+};
+
+export const getServerBaseUrl = () => {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname;
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('172.') ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.endsWith('.local')
+    ) {
+      return `http://${hostname}:3001`;
+    }
+  }
+  return 'https://localizasv-production.up.railway.app';
 };
 
 const API_BASE_URL = getApiBaseUrl();

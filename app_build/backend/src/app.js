@@ -36,10 +36,13 @@ const corsOptions = {
         // Permitir peticiones sin origen (Postman, curl, Server-to-Server)
         if (!origin) return callback(null, true);
 
-        // Verificar orígenes permitidos o subdominios
+        // Verificar orígenes permitidos o subdominios y redes locales
         const isAllowed = allowedOrigins.includes(origin) || 
                           origin.startsWith('http://localhost:') ||
                           origin.startsWith('http://127.0.0.1:') ||
+                          origin.startsWith('http://172.') ||
+                          origin.startsWith('http://192.168.') ||
+                          origin.startsWith('http://10.') ||
                           origin.endsWith('.netlify.app') || 
                           origin.endsWith('.dpdns.org');
 
@@ -47,7 +50,6 @@ const corsOptions = {
             return callback(null, true);
         } else {
             console.warn(`⚠️ [CORS] Origen bloqueado: ${origin}`);
-            // Regresar false evita que Express lance un error 500 sin cabeceras
             return callback(null, false);
         }
     },
