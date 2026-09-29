@@ -132,9 +132,16 @@ class DroneStreamManager {
         // console.log(`[FFmpeg] ${data.toString()}`);
       });
 
+      this.ffmpegProcess.on('error', (err) => {
+        console.warn('⚠️ [FFmpeg Drone] Error en proceso spawn de FFmpeg:', err.message);
+        this.isStreaming = false;
+        this.ffmpegProcess = null;
+      });
+
       this.ffmpegProcess.on('close', (code) => {
         console.log(`🛑 Proceso FFmpeg finalizado (código ${code}).`);
         this.isStreaming = false;
+        this.ffmpegProcess = null;
       });
 
       this.isStreaming = true;

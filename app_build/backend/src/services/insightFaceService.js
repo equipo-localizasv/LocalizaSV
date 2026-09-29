@@ -153,7 +153,7 @@ class InsightFaceService {
     }
 
     // Ruta ultra rápida vía Worker persistente en memoria (~15ms)
-    if (this.worker && this.isWorkerReady && !this.worker.killed) {
+    if (this.worker && this.isWorkerReady && !this.worker.killed && this.worker.stdin && this.worker.stdin.writable) {
       const id = this.reqSeq++;
       return new Promise((resolve) => {
         const timer = setTimeout(() => {
@@ -172,7 +172,13 @@ class InsightFaceService {
           match_similarity: matchSimilarity,
           matched_face_index: matchedFaceIndex
         }) + '\n';
-        this.worker.stdin.write(payload);
+        try {
+          this.worker.stdin.write(payload);
+        } catch (writeErr) {
+          clearTimeout(timer);
+          this.pendingCallbacks.delete(id);
+          this.fallbackScan(resolvedPath, annotatedOutputPath, matchName, matchSimilarity, matchedFaceIndex).then(resolve);
+        }
       });
     }
 
@@ -338,6 +344,21 @@ class InsightFaceService {
       faceA,
       faceB,
       comparison: comp
+    };
+  }
+
+  /**
+   * Alias simplificado para cotejo entre 2 imágenes retornando porcentaje directo
+   */
+  async compareFaces(image1Path, image2Path) {
+    const result = await this.compareFacesFull(image1Path, image2Path);
+    return {
+      success: true,
+      similarity_percent: result.comparison.percentage,
+      match: result.comparison.match,
+      verdict: result.comparison.verdict,
+      confidence_label: result.comparison.confidence_label,
+      details: result
     };
   }
 

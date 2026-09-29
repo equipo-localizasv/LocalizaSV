@@ -122,14 +122,23 @@ const updateAlertStatus = async (req, res) => {
         
         // Emit tactical alerta_confirmada event for PNC Command Center real-time dispatch
         if (typeof broadcast === 'function') {
+          const lat = updatedAlert.ubicacion_lat !== undefined ? updatedAlert.ubicacion_lat : updatedAlert.latitud;
+          const lng = updatedAlert.ubicacion_lng !== undefined ? updatedAlert.ubicacion_lng : updatedAlert.longitud;
+          const conf = updatedAlert.porcentaje_confianza !== undefined ? updatedAlert.porcentaje_confianza : updatedAlert.nivel_confianza;
+          const ubi = updatedAlert.ubicacion_nombre || updatedAlert.ubicacion_texto || 'Cámara de Videovigilancia / Detección Confirmada';
+
           broadcast('alerta_confirmada', {
             alerta: updatedAlert,
             caso_id: updatedAlert.caso_id,
             nombre_desaparecido: name,
-            latitud: updatedAlert.latitud,
-            longitud: updatedAlert.longitud,
-            ubicacion: updatedAlert.ubicacion_texto || 'Cámara de Videovigilancia / Detección Confirmada',
-            nivel_confianza: updatedAlert.nivel_confianza,
+            ubicacion_lat: lat,
+            ubicacion_lng: lng,
+            latitud: lat,
+            longitud: lng,
+            ubicacion: ubi,
+            ubicacion_nombre: ubi,
+            porcentaje_confianza: conf,
+            nivel_confianza: conf,
             timestamp: new Date().toISOString()
           });
         }

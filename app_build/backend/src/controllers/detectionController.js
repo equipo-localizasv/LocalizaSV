@@ -88,14 +88,10 @@ const createDetection = async (req, res) => {
       nombre_desaparecido: nombreDesaparecido
     };
 
-    // Broadcast evento WebSocket en tiempo real 'nueva_alerta'
-    const appModule = require('../app');
-    if (appModule && typeof appModule.broadcast === 'function') {
-      appModule.broadcast('nueva_alerta', newAlert);
+    // Emitir evento WebSocket en tiempo real 'nueva_alerta'
+    if (typeof broadcast === 'function') {
+      broadcast('nueva_alerta', newAlert);
     }
-
-    // Emit WebSocket event
-    broadcast('nueva_alerta', newAlert);
 
     // 5. Return the created alert with code 201
     return res.status(201).json({
