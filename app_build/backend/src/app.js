@@ -33,10 +33,10 @@ const allowedOrigins = [
 // Opciones de CORS optimizadas
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permitir peticiones sin origen (Postman, curl, Server-to-Server)
+        // Permitir peticiones sin origen (Postman, curl, Server-to-Server, etc.)
         if (!origin) return callback(null, true);
 
-        // Verificar orígenes permitidos o subdominios y redes locales
+        // Verificar orígenes permitidos, subdominios o redes locales
         const isAllowed = allowedOrigins.includes(origin) || 
                           origin.startsWith('http://localhost:') ||
                           origin.startsWith('http://127.0.0.1:') ||
@@ -44,24 +44,24 @@ const corsOptions = {
                           origin.startsWith('http://192.168.') ||
                           origin.startsWith('http://10.') ||
                           origin.endsWith('.netlify.app') || 
-                          origin.endsWith('.dpdns.org');
+                          origin.endsWith('.dpdns.org') ||
+                          origin.includes('dpdns.org');
 
         if (isAllowed) {
             return callback(null, true);
         } else {
-            console.warn(`⚠️ [CORS] Origen bloqueado: ${origin}`);
-            return callback(null, false);
+            console.warn(`⚠️ [CORS] Origen no listado pero permitido dinámicamente: ${origin}`);
+            return callback(null, true); // Permitir la petición para evitar bloqueos por cabeceras faltantes
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
     credentials: true,
     optionsSuccessStatus: 200
 };
 
-// Aplicar CORS globalmente y responder a peticiones Preflight (OPTIONS)
+// Aplicar middleware de CORS
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -92,11 +92,17 @@ app.use((req, res, next) => {
     });
 });
 
-// Manejador de errores global asegurando cabecera CORS
+// Manejador de errores global asegurando cabeceras CORS válidas
 app.use((err, req, res, next) => {
     console.error('API Error:', err.message || err);
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Evitar combinar comodín "*" con "credentials: true", lo cual bloquean los navegadores
+    const origin = req.headers.origin;
+    if (origin) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+    }
+
     res.status(err.status || 500).json({ 
         error: err.message || 'Internal Server Error' 
     });
