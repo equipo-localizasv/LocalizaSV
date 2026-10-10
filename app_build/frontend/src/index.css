@@ -82,7 +82,7 @@ a:hover {
 
 .content-wrap {
   flex: 1;
-  max-width: 1200px;
+  max-width: 1540px;
   width: 100%;
   margin: 0 auto;
   padding: 2rem 1.5rem;
@@ -1079,62 +1079,27 @@ textarea.form-control {
   background: rgba(0, 240, 255, 0.55);
 }
 
-/* ================= THEME DEFINITIONS ================= */
-:root, [data-theme="c4i"] {
-  --bg-main: #030712;
-  --bg-surface: #0b1329;
-  --bg-card: rgba(15, 23, 42, 0.85);
-  --bg-card-hover: rgba(22, 33, 58, 0.95);
-  --primary: #00f0ff;
+/* ================= UNIFIED MODERN GOVTECH DESIGN SYSTEM ================= */
+:root {
+  --bg-main: #0a0f1d;
+  --bg-surface: #10172a;
+  --bg-card: rgba(17, 24, 39, 0.92);
+  --bg-card-hover: rgba(26, 36, 56, 0.98);
+  --primary: #0284c7;
   --primary-hover: #38bdf8;
-  --primary-glow: rgba(0, 240, 255, 0.35);
-  --accent-neon: #38bdf8;
-  --accent-purple: #a855f7;
-  --spotlight-color: rgba(0, 240, 255, 0.16);
-  --border-color: rgba(0, 240, 255, 0.18);
-  --border-hover: rgba(0, 240, 255, 0.55);
+  --primary-glow: rgba(2, 132, 199, 0.2);
+  --accent-blue: #2563eb;
+  --accent-teal: #0d9488;
+  --accent-red: #ef4444;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --spotlight-color: rgba(2, 132, 199, 0.08);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(2, 132, 199, 0.4);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
-  --hud-theme-badge: #00f0ff;
-}
-
-[data-theme="cyberpunk"] {
-  --bg-main: #070314;
-  --bg-surface: #12072b;
-  --bg-card: rgba(26, 11, 56, 0.85);
-  --bg-card-hover: rgba(38, 17, 82, 0.95);
-  --primary: #c084fc;
-  --primary-hover: #e879f9;
-  --primary-glow: rgba(192, 132, 252, 0.45);
-  --accent-neon: #00f0ff;
-  --accent-purple: #f43f5e;
-  --spotlight-color: rgba(192, 132, 252, 0.22);
-  --border-color: rgba(192, 132, 252, 0.25);
-  --border-hover: rgba(232, 121, 249, 0.65);
-  --text-primary: #ffffff;
-  --text-secondary: #d8b4fe;
-  --text-muted: #9333ea;
-  --hud-theme-badge: #c084fc;
-}
-
-[data-theme="tactical"] {
-  --bg-main: #000000;
-  --bg-surface: #0a0a0a;
-  --bg-card: rgba(18, 18, 18, 0.95);
-  --bg-card-hover: rgba(28, 28, 28, 0.98);
-  --primary: #f59e0b;
-  --primary-hover: #fbbf24;
-  --primary-glow: rgba(245, 158, 11, 0.4);
-  --accent-neon: #ef4444;
-  --accent-purple: #eab308;
-  --spotlight-color: rgba(245, 158, 11, 0.2);
-  --border-color: rgba(245, 158, 11, 0.35);
-  --border-hover: rgba(245, 158, 11, 0.8);
-  --text-primary: #ffffff;
-  --text-secondary: #fef08a;
-  --text-muted: #a3a3a3;
-  --hud-theme-badge: #fbbf24;
+  --hud-theme-badge: #0284c7;
 }
 
 /* ================= SPOTLIGHT CURSOR HOVER EFFECT ================= */
@@ -1257,3 +1222,154 @@ textarea.form-control {
     transform: translateY(0) scale(1);
   }
 }
+
+/* ================= FIXED MODAL OVERLAY WORKSTATION ================= */
+.modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(6, 11, 24, 0.9) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow-y: auto !important;
+  padding: 1.5rem !important;
+  z-index: 99999 !important;
+}
+
+.modal-overlay > div {
+  max-height: 92vh;
+  overflow-y: auto;
+  margin: auto;
+}
+
+body.modal-open {
+  overflow: hidden !important;
+}
+
+/* ==========================================================================
+   MASTER AESTHETICS OVERHAUL (TÉCNICA CUA: CLARO, ÚNICO Y ATRACTIVO)
+   ========================================================================== */
+
+/* Global Font Overrides */
+body, button, input, select, textarea {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif !important;
+}
+
+h1, h2, h3, h4, h5, h6, .brand-title, .pnc-header h1 {
+  font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  letter-spacing: -0.025em;
+}
+
+/* Scrollbars Tácticos C4I */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #060a12;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+}
+
+/* Fondo Ambiental Dinámico */
+body {
+  background-color: #060a12 !important;
+  background-image: 
+    radial-gradient(circle at 10% 12%, rgba(14, 165, 233, 0.08) 0%, transparent 45%),
+    radial-gradient(circle at 90% 18%, rgba(168, 85, 247, 0.07) 0%, transparent 45%),
+    radial-gradient(circle at 50% 92%, rgba(16, 185, 129, 0.06) 0%, transparent 50%) !important;
+  background-attachment: fixed !important;
+}
+
+/* Cards & Glass Panels Ultra-Premium */
+.glass-panel, .case-card, .pnc-alert-card, .pnc-case-card {
+  background: rgba(13, 22, 41, 0.8) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.18) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.glass-panel:hover, .case-card:hover {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  transform: translateY(-3px) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65), 0 0 25px rgba(2, 132, 199, 0.2) !important;
+}
+
+/* Buttons Shimmer & Glow */
+.btn-primary, .pnc-btn-fast-dispatch {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s ease !important;
+}
+
+.btn-primary::after, .pnc-btn-fast-dispatch::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(
+    60deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 100%
+  );
+  transform: rotate(25deg);
+  pointer-events: none;
+  transition: all 0.6s ease;
+}
+
+.btn-primary:hover::after, .pnc-btn-fast-dispatch:hover::after {
+  left: 130%;
+}
+
+/* Input Fields Focus Glow */
+.form-control, input[type="text"], input[type="password"], input[type="email"], select, textarea {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.form-control:focus, input:focus, select:focus, textarea:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25), 0 0 15px rgba(14, 165, 233, 0.2) !important;
+}
+
+/* Badges con Iluminación Semántica */
+.status-badge.desaparecido {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.status-badge.encontrado {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.status-badge.warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+

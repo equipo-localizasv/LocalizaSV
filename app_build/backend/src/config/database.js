@@ -96,7 +96,7 @@ const mockQuery = (text, params = []) => {
 
   // 2. INSERT INTO usuarios
   if (normalizedText.includes('INSERT INTO usuarios')) {
-    const [nombre, dui, email, telefono, password_hash, selfie_url, rol] = params;
+    const [nombre, dui, email, telefono, password_hash, selfie_url, rol, placa_pnc, delegacion_pnc, patrulla_pnc] = params;
     const nextId = db.usuarios.length > 0 ? Math.max(...db.usuarios.map(u => u.id)) + 1 : 1;
     const newUser = {
       id: nextId,
@@ -107,6 +107,12 @@ const mockQuery = (text, params = []) => {
       password_hash,
       selfie_url,
       rol: rol || 'ciudadano',
+      placa_pnc: placa_pnc || (rol === 'autoridad' ? `PNC-${Math.floor(10000 + Math.random() * 90000)}` : null),
+      delegacion_pnc: delegacion_pnc || (rol === 'autoridad' ? 'Delegación San Salvador Centro' : null),
+      patrulla_pnc: patrulla_pnc || (rol === 'autoridad' ? 'Patrulla Móvil C4I' : null),
+      en_servicio: rol === 'autoridad',
+      lat: 13.6929,
+      lng: -89.2182,
       created_at: new Date().toISOString()
     };
     db.usuarios.push(newUser);
@@ -114,10 +120,59 @@ const mockQuery = (text, params = []) => {
     return { rows: [newUser] };
   }
 
-  // 3. SELECT * FROM usuarios WHERE email = $1
-  if (normalizedText.includes('SELECT * FROM usuarios WHERE email = $1')) {
+  // 2.1 SELECT FROM usuarios WHERE telefono = $1 OR email = $1 / recuperación de contraseña
+  if (normalizedText.includes('FROM usuarios WHERE telefono = $1') || normalizedText.includes('FROM usuarios WHERE email = $1 OR telefono = $2') || normalizedText.includes('FROM usuarios WHERE telefono = $1 OR email = $1')) {
+    const [p1, p2] = params;
+    const found = db.usuarios.filter(u => 
+      u.telefono === p1 || u.email === p1 || (p2 && (u.telefono === p2 || u.email === p2))
+    );
+    return { rows: found };
+  }
+
+  // 2.2 UPDATE usuarios SET password_hash = $1 WHERE email = $2 OR telefono = $2 / id = $2
+  if (normalizedText.includes('UPDATE usuarios SET password_hash = $1')) {
+    const [password_hash, identifier] = params;
+    const idx = db.usuarios.findIndex(u => 
+      u.id === parseInt(identifier) || u.email === identifier || u.telefono === identifier
+    );
+    if (idx !== -1) {
+      db.usuarios[idx].password_hash = password_hash;
+      writeMockDb(db);
+      return { rows: [db.usuarios[idx]], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
+  // 2.3 UPDATE usuarios SET lat = ... / patrulla location y estado de servicio
+  if (normalizedText.includes('UPDATE usuarios SET') && (normalizedText.includes('lat') || normalizedText.includes('en_servicio'))) {
+    const [lat, lng, en_servicio, ultima_conexion, id] = params;
+    const idx = db.usuarios.findIndex(u => u.id === parseInt(id));
+    if (idx !== -1) {
+      if (lat !== undefined && lat !== null) db.usuarios[idx].lat = parseFloat(lat);
+      if (lng !== undefined && lng !== null) db.usuarios[idx].lng = parseFloat(lng);
+      if (en_servicio !== undefined && en_servicio !== null) db.usuarios[idx].en_servicio = Boolean(en_servicio);
+      db.usuarios[idx].ultima_conexion = ultima_conexion || new Date().toISOString();
+      writeMockDb(db);
+      return { rows: [db.usuarios[idx]], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
+  // 2.4 SELECT * FROM usuarios WHERE rol = ... (Patrullas y oficiales activos)
+  if (normalizedText.includes('FROM usuarios WHERE rol =') || normalizedText.includes('FROM usuarios WHERE LOWER(rol) =')) {
+    const rolTarget = (params[0] || (normalizedText.includes("'autoridad'") ? 'autoridad' : 'moderador')).toLowerCase();
+    const found = db.usuarios.filter(u => (u.rol || '').toLowerCase() === rolTarget);
+    return { rows: found };
+  }
+
+  // 3. SELECT * FROM usuarios WHERE email = $1 / LOWER(email) = $1
+  if (normalizedText.includes('FROM usuarios WHERE email = $1') || normalizedText.includes('FROM usuarios WHERE LOWER(email) = $1')) {
     const [email] = params;
-    const found = db.usuarios.filter(u => u.email === email).map(u => ({
+    const clean = (email || '').trim().toLowerCase();
+    const found = db.usuarios.filter(u => {
+      const uEmail = (u.email || '').trim().toLowerCase();
+      return uEmail === clean;
+    }).map(u => ({
       ...u,
       rol: u.rol || 'ciudadano'
     }));
@@ -136,46 +191,99 @@ const mockQuery = (text, params = []) => {
 
   // 5. INSERT INTO casos
   if (normalizedText.includes('INSERT INTO casos')) {
-    const [
-      usuario_id,
-      nombre_desaparecido,
-      edad,
-      genero,
-      fecha_desaparicion,
-      ubicacion_desaparicion,
-      descripcion,
-      telefono_contacto,
-      foto_url,
-      biometria_insightface,
-      vestimenta,
-      senas_particulares,
-      estatura_cm,
-      complexion,
-      condicion_medica,
-      lugar_frecuente
-    ] = params;
+    let newCase;
     const nextId = db.casos.length > 0 ? Math.max(...db.casos.map(c => c.id)) + 1 : 1;
-    const newCase = {
-      id: nextId,
-      usuario_id: parseInt(usuario_id),
-      nombre_desaparecido,
-      edad: parseInt(edad),
-      genero,
-      fecha_desaparicion,
-      ubicacion_desaparicion,
-      descripcion,
-      telefono_contacto,
-      foto_url,
-      biometria_insightface: biometria_insightface || null,
-      vestimenta: vestimenta || null,
-      senas_particulares: senas_particulares || null,
-      estatura_cm: estatura_cm ? parseInt(estatura_cm) : null,
-      complexion: complexion || null,
-      condicion_medica: condicion_medica || null,
-      lugar_frecuente: lugar_frecuente || null,
-      estado: 'Desaparecido',
-      created_at: new Date().toISOString()
-    };
+
+    if (params.length >= 17) {
+      const [
+        usuario_id,
+        nombre_desaparecido,
+        edad,
+        genero,
+        fecha_desaparicion,
+        ubicacion_desaparicion,
+        descripcion,
+        telefono_contacto,
+        foto_url,
+        biometria_insightface,
+        vestimenta,
+        senas_particulares,
+        estatura_cm,
+        complexion,
+        condicion_medica,
+        lugar_frecuente,
+        parentesco_reportante,
+        direccion_vivienda,
+        telefono_privado
+      ] = params;
+      newCase = {
+        id: nextId,
+        usuario_id: parseInt(usuario_id),
+        nombre_desaparecido,
+        edad: parseInt(edad),
+        genero,
+        fecha_desaparicion,
+        ubicacion_desaparicion,
+        descripcion,
+        telefono_contacto,
+        foto_url,
+        biometria_insightface: biometria_insightface || null,
+        vestimenta: vestimenta || null,
+        senas_particulares: senas_particulares || null,
+        estatura_cm: estatura_cm ? parseInt(estatura_cm) : null,
+        complexion: complexion || null,
+        condicion_medica: condicion_medica || null,
+        lugar_frecuente: lugar_frecuente || null,
+        parentesco_reportante: parentesco_reportante || 'Familiar',
+        direccion_vivienda: direccion_vivienda || null,
+        telefono_privado: telefono_privado !== undefined ? Boolean(telefono_privado) : true,
+        estado: 'Desaparecido',
+        created_at: new Date().toISOString()
+      };
+    } else {
+      const [
+        usuario_id,
+        nombre_desaparecido,
+        edad,
+        genero,
+        fecha_desaparicion,
+        ubicacion_desaparicion,
+        descripcion,
+        telefono_contacto,
+        foto_url,
+        biometria_insightface,
+        vestimenta,
+        senas_particulares,
+        estatura_cm,
+        complexion,
+        condicion_medica,
+        lugar_frecuente
+      ] = params;
+      newCase = {
+        id: nextId,
+        usuario_id: parseInt(usuario_id),
+        nombre_desaparecido,
+        edad: parseInt(edad),
+        genero,
+        fecha_desaparicion,
+        ubicacion_desaparicion,
+        descripcion,
+        telefono_contacto,
+        foto_url,
+        biometria_insightface: biometria_insightface || null,
+        vestimenta: vestimenta || null,
+        senas_particulares: senas_particulares || null,
+        estatura_cm: estatura_cm ? parseInt(estatura_cm) : null,
+        complexion: complexion || null,
+        condicion_medica: condicion_medica || null,
+        lugar_frecuente: lugar_frecuente || null,
+        parentesco_reportante: 'Familiar',
+        direccion_vivienda: null,
+        telefono_privado: true,
+        estado: 'Desaparecido',
+        created_at: new Date().toISOString()
+      };
+    }
     db.casos.push(newCase);
     writeMockDb(db);
     return { rows: [newCase] };
@@ -283,6 +391,49 @@ const mockQuery = (text, params = []) => {
       return { rows: [db.casos[idx]] };
     }
     return { rows: [] };
+  }
+
+  // 9.2 UPDATE casos SET (Edición general por moderador / administrador / creador)
+  if (normalizedText.includes('UPDATE casos SET')) {
+    const id = params[params.length - 1];
+    const idx = db.casos.findIndex(c => c.id === parseInt(id));
+    if (idx !== -1) {
+      // Si la query pasa valores individuales (nombre, edad, etc.)
+      const updated = { ...db.casos[idx] };
+      // Buscar si pasan campos típicos en params
+      if (params.length >= 8) {
+        // [nombre_desaparecido, edad, genero, fecha_desaparicion, ubicacion_desaparicion, descripcion, direccion_vivienda, parentesco_reportante, telefono_contacto, vestimenta, senas_particulares, estado, id]
+        if (params[0]) updated.nombre_desaparecido = params[0];
+        if (params[1]) updated.edad = parseInt(params[1]);
+        if (params[2]) updated.genero = params[2];
+        if (params[3]) updated.fecha_desaparicion = params[3];
+        if (params[4]) updated.ubicacion_desaparicion = params[4];
+        if (params[5]) updated.descripcion = params[5];
+        if (params[6]) updated.direccion_vivienda = params[6];
+        if (params[7]) updated.parentesco_reportante = params[7];
+        if (params[8]) updated.telefono_contacto = params[8];
+        if (params[9]) updated.vestimenta = params[9];
+        if (params[10]) updated.senas_particulares = params[10];
+        if (params[11]) updated.estado = params[11];
+      }
+      db.casos[idx] = updated;
+      writeMockDb(db);
+      return { rows: [updated], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 0 };
+  }
+
+  // 9.3 DELETE FROM casos WHERE id = $1
+  if (normalizedText.includes('DELETE FROM casos WHERE id = $1')) {
+    const [id] = params;
+    const caseId = parseInt(id);
+    const beforeCount = db.casos.length;
+    db.casos = db.casos.filter(c => c.id !== caseId);
+    if (db.alertas) {
+      db.alertas = db.alertas.filter(a => a.caso_id !== caseId);
+    }
+    writeMockDb(db);
+    return { rowCount: beforeCount - db.casos.length, rows: [] };
   }
 
   // 10. SELECT id FROM casos WHERE id = $1 (broadened)

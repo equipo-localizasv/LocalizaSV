@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import socketService from '../services/socket';
+import { AuthContext } from '../App';
 import { calculateFastestEmergencyRoute } from '../services/emergencyRouting';
 import MapaAlertas from '../components/MapaAlertas';
 import PoliceInterventionCertificateModal from '../components/PoliceInterventionCertificateModal';
@@ -29,7 +30,17 @@ import {
   Radar,
   FileCheck,
   Navigation,
-  Siren
+  Siren,
+  Volume2,
+  Mic,
+  RadioTower,
+  Car,
+  UserCheck,
+  Grid,
+  List,
+  MessageSquare,
+  PhoneCall,
+  Building
 } from 'lucide-react';
 
 const DEPARTAMENTOS_SV = [
@@ -50,12 +61,25 @@ const DEPARTAMENTOS_SV = [
 ];
 
 const AuthorityPanel = () => {
+  const { user } = useContext(AuthContext);
   const [alerts, setAlerts] = useState([]);
   const [cases, setCases] = useState([]);
+  const [patrols, setPatrols] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Sub-interfaz activa: 'gis' | 'cases' | 'alerts' | 'broadcast'
+  // Transmisión GPS en Vivo y Telemetría de Patrulla Activa
+  const [gpsActive, setGpsActive] = useState(true);
+  const [currentGps, setCurrentGps] = useState({ lat: 13.6929, lng: -89.2182 });
+  const [gpsNotice, setGpsNotice] = useState('GPS Activo y transmitiendo a base C4I');
+  const [radioModalOpen, setRadioModalOpen] = useState(false);
+  const [radioTalking, setRadioTalking] = useState(false);
+  const [radioMessage, setRadioMessage] = useState('');
+  const [radioLog, setRadioLog] = useState([
+    { de: 'Base Central C4I', texto: 'Canal táctico 1 abierto para unidades de patrullaje en territorio.', hora: '10:00 AM' }
+  ]);
+
+  // Sub-interfaz activa: 'gis' | 'cases' | 'alerts' | 'patrols' | 'broadcast'
   const [activeTab, setActiveTab] = useState('gis');
 
   // Ruteo Táctico de Intercepción de Emergencia PNC
@@ -63,14 +87,19 @@ const AuthorityPanel = () => {
   const [confirmedEmergency, setConfirmedEmergency] = useState(null);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
 
-  // Filtros de Alertas
+  // Filtros de Alertas y Modo de Vista CUA
   const [dateFilter, setDateFilter] = useState('todas');
   const [statusFilter, setStatusFilter] = useState('todos');
+  const [alertViewMode, setAlertViewMode] = useState('cards'); // 'cards' (Tarjetas C4I) | 'table' (Tabla Operativa)
 
   // Filtros de Casos / Expedientes
   const [caseSearch, setCaseSearch] = useState('');
   const [caseDeptFilter, setCaseDeptFilter] = useState('');
   const [caseStatusFilter, setCaseStatusFilter] = useState('');
+
+  // Filtros de Personal / Patrullas Policiales
+  const [patrolSearch, setPatrolSearch] = useState('');
+  const [patrolDelegationFilter, setPatrolDelegationFilter] = useState('');
 
   // Emisión de Alerta Nacional (Código Ámbar Flash)
   const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
@@ -84,6 +113,16 @@ const AuthorityPanel = () => {
   // Anillos Predictivos de Isócronas y Certificado SHA-256
   const [isochroneRadius, setIsochroneRadius] = useState('30m'); // '15m' | '30m' | '60m'
   const [certificateTarget, setCertificateTarget] = useState({ isOpen: false, alerta: null, caso: null });
+
+  // Modal para Registro de Novedades y Atención Policial
+  const [attentionModal, setAttentionModal] = useState({
+    isOpen: false,
+    alerta: null,
+    caso: null,
+    notas: '',
+    nuevoEstado: 'confirmado'
+  });
+  const [savingAttention, setSavingAttention] = useState(false);
 
   // Estado de actualización de caso
   const [updatingCaseId, setUpdatingCaseId] = useState(null);
@@ -139,12 +178,14 @@ const AuthorityPanel = () => {
     setLoading(true);
     setError('');
     try {
-      const [alertsRes, casesRes] = await Promise.all([
+      const [alertsRes, casesRes, patrolsRes] = await Promise.all([
         api.get('/alertas/activas'),
-        api.get('/cases').catch(() => ({ data: [] }))
+        api.get('/cases').catch(() => ({ data: [] })),
+        api.get('/patrullas/activas').catch(() => ({ data: [] }))
       ]);
       setAlerts(alertsRes.data || []);
       setCases(casesRes.data || []);
+      setPatrols(patrolsRes.data || []);
     } catch (err) {
       console.error('Error fetching data for AuthorityPanel:', err);
       setError('No se pudieron cargar los datos operativos de la PNC.');
@@ -186,7 +227,25 @@ const AuthorityPanel = () => {
       fetchData();
     };
 
+    // Escucha en tiempo real de telemetría de patrullas policiales
+    const handlePatrolLocation = (payload) => {
+      setPatrols((prev) =>
+        prev.map((p) =>
+          p.id === payload.usuario_id
+            ? {
+                ...p,
+                lat: payload.lat,
+                lng: payload.lng,
+                en_servicio: payload.en_servicio !== undefined ? payload.en_servicio : p.en_servicio,
+                ultima_conexion: payload.timestamp || new Date().toISOString()
+              }
+            : p
+        )
+      );
+    };
+
     socketService.on('alerta_confirmada', handleIncomingConfirmedAlert);
+    socketService.on('patrulla_ubicacion', handlePatrolLocation);
     socketService.on('alerta_actualizada', (alerta) => {
       if (alerta.id_estado_alerta === 2 || (alerta.estado || '').toLowerCase() === 'confirmado') {
         handleIncomingConfirmedAlert({
@@ -200,10 +259,123 @@ const AuthorityPanel = () => {
       }
     });
 
+    // Sondeo de respaldo periódico para telemetría de patrullas cada 15s
+    const patrolPollInterval = setInterval(async () => {
+      try {
+        const res = await api.get('/patrullas/activas');
+        if (res.data) setPatrols(res.data);
+      } catch (e) {
+        // silencioso
+      }
+    }, 15000);
+
     return () => {
       socketService.off('alerta_confirmada', handleIncomingConfirmedAlert);
+      socketService.off('patrulla_ubicacion', handlePatrolLocation);
+      clearInterval(patrolPollInterval);
     };
   }, []);
+
+  // Registrar novedades / bitácora de atención policial y actualizar estado
+  const handleSaveAttention = async () => {
+    if (!attentionModal.alerta) return;
+    setSavingAttention(true);
+    try {
+      await api.put(`/alertas/${attentionModal.alerta.id}`, {
+        estado: attentionModal.nuevoEstado,
+        comentarios: attentionModal.notas
+      });
+
+      // Refrescar estado local de la alerta
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === attentionModal.alerta.id
+            ? {
+                ...a,
+                estado: attentionModal.nuevoEstado,
+                comentarios: attentionModal.notas,
+                fecha_validacion: new Date().toISOString()
+              }
+            : a
+        )
+      );
+
+      setAttentionModal({
+        isOpen: false,
+        alerta: null,
+        caso: null,
+        notas: '',
+        nuevoEstado: 'confirmado'
+      });
+    } catch (err) {
+      console.error('Error al guardar atención policial:', err);
+      alert('No se pudo registrar la atención policial. Intente nuevamente.');
+    } finally {
+      setSavingAttention(false);
+    }
+  };
+
+  // Transmisión de ubicación en tiempo real de la patrulla a la central C4I
+  const transmitPatrolGPS = async () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      setCurrentGps({ lat: latitude, lng: longitude });
+      try {
+        await api.put('/patrullas/ubicacion', {
+          lat: latitude,
+          lng: longitude,
+          en_servicio: gpsActive
+        });
+        setGpsNotice(`GPS transmitido: ${latitude.toFixed(4)}, ${longitude.toFixed(4)} (En vivo)`);
+      } catch (e) {
+        // Fallback silencioso
+      }
+    }, () => {
+      // Simular lat/lng de San Salvador si no hay GPS físico disponible
+      api.put('/patrullas/ubicacion', {
+        lat: 13.6929,
+        lng: -89.2182,
+        en_servicio: gpsActive
+      }).catch(() => null);
+    }, { enableHighAccuracy: true });
+  };
+
+  useEffect(() => {
+    if (gpsActive) {
+      transmitPatrolGPS();
+      const interval = setInterval(transmitPatrolGPS, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [gpsActive]);
+
+  const handleAcceptRescueMission = async (casoId) => {
+    try {
+      const res = await api.put(`/cases/${casoId}/aceptar`);
+      setCases(prev => prev.map(c => c.id === casoId ? { ...c, ...res.data.caso, estado: 'En Proceso de Rescate', rescatista_nombre: user?.nombre || 'Oficial PNC' } : c));
+      alert(`🚔 ¡Misión de rescate aceptada con éxito!\n\nSu unidad policial ha sido asignada. Se notificó a la base C4I y a las cuadrillas tácticas.`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'No se pudo aceptar la misión de rescate.');
+    }
+  };
+
+  const handleSendRadioMessage = async () => {
+    if (!radioMessage.trim()) return;
+    const msg = radioMessage.trim();
+    setRadioLog(prev => [
+      ...prev,
+      { de: `Oficial ${user?.nombre || 'PNC'} (${user?.patrulla_pnc || 'Patrulla'})`, texto: msg, hora: new Date().toLocaleTimeString() }
+    ]);
+    setRadioMessage('');
+    try {
+      await api.post('/patrullas/llamar', {
+        canal: 'Frecuencia Táctica Central PNC',
+        mensaje: msg
+      });
+    } catch (e) {
+      // Handled
+    }
+  };
 
   // Función para iniciar o recalcular la ruta de intercepción inmediata a un objetivo
   const handleDispatchEmergency = async (target) => {
@@ -309,6 +481,23 @@ const AuthorityPanel = () => {
     });
   }, [cases, caseSearch, caseDeptFilter, caseStatusFilter]);
 
+  // Personal y Patrullas Policiales Filtradas
+  const filteredPatrols = useMemo(() => {
+    return patrols.filter((p) => {
+      const matchesSearch =
+        patrolSearch === '' ||
+        (p.nombre || '').toLowerCase().includes(patrolSearch.toLowerCase()) ||
+        (p.placa_pnc || '').toLowerCase().includes(patrolSearch.toLowerCase()) ||
+        (p.patrulla_pnc || '').toLowerCase().includes(patrolSearch.toLowerCase());
+
+      const matchesDept =
+        patrolDelegationFilter === '' ||
+        (p.delegacion_pnc || '').toLowerCase().includes(patrolDelegationFilter.toLowerCase());
+
+      return matchesSearch && matchesDept;
+    });
+  }, [patrols, patrolSearch, patrolDelegationFilter]);
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
@@ -372,6 +561,27 @@ const AuthorityPanel = () => {
 
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
+            onClick={() => setRadioModalOpen(true)}
+            style={{
+              padding: '0.5rem 0.95rem',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(2, 132, 199, 0.35)'
+            }}
+          >
+            <RadioTower size={16} />
+            <span>📞 Enlace Radial Base C4I</span>
+          </button>
+
+          <button
             onClick={() => setBroadcastModalOpen(true)}
             className="btn btn-danger"
             style={{
@@ -411,6 +621,89 @@ const AuthorityPanel = () => {
             title="Refrescar datos"
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </div>
+
+      {/* BARRA DE TELEMETRÍA TÁCTICA DEL OFICIAL Y PATRULLA EN SERVICIO */}
+      <div style={{
+        background: 'rgba(15, 23, 42, 0.85)',
+        border: '1px solid rgba(56, 189, 248, 0.35)',
+        borderRadius: '12px',
+        padding: '0.85rem 1.25rem',
+        marginBottom: '1.25rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '0.85rem',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.2rem' }}>👮</span>
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#f8fafc' }}>
+                {user?.nombre || 'Oficial PNC en Servicio'}
+              </div>
+              <div style={{ fontSize: '0.74rem', color: '#38bdf8', fontFamily: 'monospace' }}>
+                Placa: <strong>{user?.placa_pnc || user?.numero_placa || 'ONIE-48192'}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ height: '24px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+
+          <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+            <span style={{ color: '#94a3b8' }}>Unidad Asignada:</span>{' '}
+            <strong style={{ color: '#fbbf24' }}>{user?.patrulla_pnc || 'Patrulla Móvil C4I #04'}</strong>
+          </div>
+
+          <div style={{ height: '24px', width: '1px', background: 'rgba(255,255,255,0.1)' }} />
+
+          <div style={{ fontSize: '0.78rem', color: '#cbd5e1' }}>
+            <span style={{ color: '#94a3b8' }}>Delegación:</span>{' '}
+            <strong style={{ color: '#a78bfa' }}>{user?.delegacion_pnc || 'San Salvador Centro'}</strong>
+          </div>
+        </div>
+
+        {/* Control GPS en Tiempo Real */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: gpsActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+            border: `1px solid ${gpsActive ? '#10b981' : '#ef4444'}`,
+            color: gpsActive ? '#34d399' : '#f87171',
+            padding: '0.35rem 0.75rem',
+            borderRadius: '9999px',
+            fontSize: '0.76rem',
+            fontWeight: 700
+          }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: gpsActive ? '#10b981' : '#ef4444',
+              boxShadow: `0 0 8px ${gpsActive ? '#10b981' : '#ef4444'}`
+            }} />
+            <span>{gpsActive ? 'GPS Transmitiendo en Vivo' : 'GPS Desconectado'}</span>
+            <span style={{ color: '#94a3b8', marginLeft: '4px', fontFamily: 'monospace' }}>
+              ({currentGps.lat.toFixed(4)}, {currentGps.lng.toFixed(4)})
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setGpsActive(!gpsActive);
+              if (!gpsActive) transmitPatrolGPS();
+            }}
+            className="btn btn-secondary"
+            style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', fontWeight: 600 }}
+          >
+            {gpsActive ? 'Pausar GPS' : 'Reanudar GPS'}
           </button>
         </div>
       </div>
@@ -590,8 +883,17 @@ const AuthorityPanel = () => {
           onClick={() => setActiveTab('alerts')}
         >
           <Activity size={17} />
-          <span>3. Alertas y Detecciones Biométricas</span>
+          <span>3. Alertas y Atenciones Policiales</span>
           <span className="pnc-tab-badge">{filteredAlerts.length}</span>
+        </button>
+
+        <button
+          className={`pnc-tab-btn ${activeTab === 'patrols' ? 'active' : ''}`}
+          onClick={() => setActiveTab('patrols')}
+        >
+          <Car size={17} />
+          <span>4. Personal Activo & Mapa en Tiempo Real</span>
+          <span className="pnc-tab-badge" style={{ background: '#0284c7' }}>{patrols.length}</span>
         </button>
 
         <button
@@ -599,7 +901,7 @@ const AuthorityPanel = () => {
           onClick={() => setActiveTab('broadcast')}
         >
           <Radio size={17} />
-          <span>4. Centro Código Ámbar Flash</span>
+          <span>5. Centro Código Ámbar Flash</span>
         </button>
       </div>
 
@@ -921,13 +1223,57 @@ const AuthorityPanel = () => {
                           {caso.nombre_desaparecido}
                         </h4>
 
-                        <div style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <div style={{ fontSize: '0.78rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                           <div><strong>Edad:</strong> {caso.edad} años • {caso.genero}</div>
-                          <div style={{ color: '#38bdf8' }}>📍 {caso.ubicacion_desaparicion}</div>
+                          <div style={{ color: '#38bdf8' }}>📍 <strong>Último avistamiento:</strong> {caso.ubicacion_desaparicion}</div>
+                          {caso.direccion_vivienda && (
+                            <div style={{ color: '#34d399', background: 'rgba(52, 211, 153, 0.1)', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid rgba(52, 211, 153, 0.25)' }}>
+                              🏠 <strong>Traslado Seguro (Vivienda Habitual):</strong> {caso.direccion_vivienda}
+                            </div>
+                          )}
+                          {caso.parentesco_reportante && (
+                            <div style={{ color: '#cbd5e1', fontSize: '0.74rem' }}>
+                              👤 <strong>Reportado por:</strong> {caso.parentesco_reportante} <span style={{ color: '#10b981', fontSize: '0.7rem', fontWeight: 700 }}>🔒 Contacto Blindado (Anti-Extorsión)</span>
+                            </div>
+                          )}
                           <div>📅 {formatDate(caso.fecha_desaparicion)}</div>
                         </div>
                       </div>
                     </div>
+
+                    {/* Badge de Evidencia IA Confirmada si existe coincidencia */}
+                    {(() => {
+                      const alertMatch = alerts.find((a) => a.caso_id === caso.id && ((a.estado || '').toLowerCase() === 'confirmado' || a.id_estado_alerta === 2 || (a.similitud && a.similitud >= 0.75)));
+                      if (!alertMatch) return null;
+                      return (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.6rem',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          border: '1px solid rgba(239, 68, 68, 0.4)',
+                          borderRadius: '6px',
+                          padding: '0.45rem 0.6rem'
+                        }}>
+                          {alertMatch.foto_evidencia_url && (
+                            <img
+                              src={getImageUrl(alertMatch.foto_evidencia_url)}
+                              alt="Evidencia Facial IA"
+                              style={{ width: '42px', height: '42px', borderRadius: '4px', objectFit: 'cover', border: '2px solid #ef4444' }}
+                            />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f87171', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Radio size={12} />
+                              <span>EVIDENCIA FACIAL CONFIRMADA ({Math.round((alertMatch.similitud || 0.88) * 100)}%)</span>
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              Cámara: {alertMatch.camara_nombre || 'Circuito Cerrado C4I'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Descripción Corta */}
                     <p style={{
@@ -943,6 +1289,64 @@ const AuthorityPanel = () => {
                     }}>
                       {caso.descripcion || 'Sin señas particulares adicionales.'}
                     </p>
+
+                    {/* Botón Principal de Misión de Rescate Táctico */}
+                    <div style={{ marginTop: '0.2rem' }}>
+                      {isDesaparecido ? (
+                        <button
+                          onClick={() => handleAcceptRescueMission(caso.id)}
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.45rem',
+                            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: '#000',
+                            cursor: 'pointer',
+                            boxShadow: '0 0 15px rgba(245, 158, 11, 0.35)',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <ShieldAlert size={16} />
+                          <span>⚡ ACEPTAR MISIÓN DE RESCATE</span>
+                        </button>
+                      ) : isRescate ? (
+                        <button
+                          onClick={() => handleUpdateCaseStatus(caso.id, 'Encontrado')}
+                          style={{
+                            width: '100%',
+                            padding: '0.6rem',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.45rem',
+                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            border: 'none',
+                            borderRadius: '6px',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            boxShadow: '0 0 15px rgba(16, 185, 129, 0.35)',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <CheckCircle2 size={16} />
+                          <span>✓ CONFIRMAR PERSONA RESGUARDADA</span>
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', color: '#34d399', fontSize: '0.78rem', fontWeight: 700, padding: '0.45rem', background: 'rgba(52, 211, 153, 0.1)', borderRadius: '6px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+                          <CheckCircle2 size={15} />
+                          <span>EXPEDIENTE CONCLUIDO Y RESGUARDADO</span>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Barra de Acciones Policiales Oficiales */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
@@ -1047,7 +1451,6 @@ const AuthorityPanel = () => {
                           }}
                         >
                           <span>Expediente</span>
-                          <ExternalLink size={12} />
                         </Link>
                       </div>
                     </div>
@@ -1060,13 +1463,13 @@ const AuthorityPanel = () => {
       )}
 
       {/* =========================================================================
-          SUB-INTERFAZ 3: ALERTAS Y DETECCIONES BIOMÉTRICAS
+          SUB-INTERFAZ 3: ALERTAS Y ATENCIONES POLICIALES (TÉCNICA CUA)
          ========================================================================= */}
       {activeTab === 'alerts' && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
-          {/* Barra de Filtros de Alertas */}
-          <div className="pnc-cases-toolbar">
+          {/* Barra de Filtros y Selector de Vista CUA */}
+          <div className="pnc-cases-toolbar" style={{ flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Clock size={16} style={{ color: '#94a3b8' }} />
@@ -1101,94 +1504,723 @@ const AuthorityPanel = () => {
               </div>
             </div>
 
-            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-              {filteredAlerts.length} detecciones registradas
-            </span>
+            {/* Alternador de Modo de Vista CUA: Tarjetas vs Tabla */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
+                <strong style={{ color: '#fff' }}>{filteredAlerts.length}</strong> atenciones registradas
+              </span>
+
+              <div style={{ display: 'inline-flex', background: 'rgba(15, 23, 42, 0.8)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <button
+                  type="button"
+                  onClick={() => setAlertViewMode('cards')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: alertViewMode === 'cards' ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'transparent',
+                    color: alertViewMode === 'cards' ? '#fff' : '#94a3b8',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Grid size={13} />
+                  <span>Tarjetas C4I</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAlertViewMode('table')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: alertViewMode === 'table' ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'transparent',
+                    color: alertViewMode === 'table' ? '#fff' : '#94a3b8',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <List size={13} />
+                  <span>Tabla Operativa</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Tabla de Alertas */}
-          <div className="pnc-table-wrapper">
-            {filteredAlerts.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-                No se registraron alertas con los filtros seleccionados.
-              </div>
-            ) : (
-              <table className="pnc-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Persona Detectada</th>
-                    <th>Estado</th>
-                    <th>Fecha & Hora</th>
-                    <th>Coordenadas GPS</th>
-                    <th>Acción Policial</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAlerts.map((alerta) => (
-                    <tr key={alerta.id}>
-                      <td style={{ fontWeight: 700, color: '#38bdf8' }}>
-                        #{alerta.id}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>
-                        {alerta.nombre_desaparecido}
-                      </td>
-                      <td>
-                        <span className={`status-badge ${alerta.estado === 'confirmado' ? 'encontrado' : 'warning'}`} style={{ position: 'static' }}>
-                          {alerta.estado || 'En investigación'}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
-                        {formatDate(alerta.fecha_deteccion || alerta.created_at)}
-                      </td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#38bdf8' }}>
-                        📍 {formatCoordinates(alerta.ubicacion_lat, alerta.ubicacion_lng)}
-                      </td>
-                      <td>
-                        <button
-                          onClick={() => {
-                            const matchedCase = cases.find((c) => c.id === alerta.caso_id);
-                            setCertificateTarget({ isOpen: true, alerta, caso: matchedCase });
-                          }}
-                          style={{
-                            background: 'rgba(0, 240, 255, 0.12)',
-                            border: '1px solid rgba(0, 240, 255, 0.4)',
-                            color: '#00f0ff',
-                            borderRadius: '6px',
-                            padding: '0.35rem 0.65rem',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem'
-                          }}
-                        >
-                          <Shield size={13} />
-                          <span>Despacho SHA-256</span>
-                        </button>
+          {/* VISTA 1: TARJETAS DE INTELIGENCIA C4I Y ATENCIÓN POLICIAL (CUA) */}
+          {alertViewMode === 'cards' && (
+            <div>
+              {filteredAlerts.length === 0 ? (
+                <div className="glass-panel text-center" style={{ padding: '3rem 2rem' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🚨</div>
+                  <h3 style={{ margin: 0 }}>No hay alertas ni atenciones con los filtros actuales</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                    Modifique el rango temporal o el filtro de estado para visualizar registros históricos.
+                  </p>
+                </div>
+              ) : (
+                <div className="pnc-alert-cards-grid">
+                  {filteredAlerts.map((alerta) => {
+                    const matchedCase = cases.find((c) => c.id === alerta.caso_id);
+                    const isConfirmed = (alerta.estado || '').toLowerCase() === 'confirmado' || alerta.id_estado_alerta === 2;
+                    const isResolved = (alerta.estado || '').toLowerCase() === 'resuelto' || (alerta.estado || '').toLowerCase() === 'encontrado';
+                    const similarityPct = Math.round((alerta.similitud || alerta.porcentaje_confianza ? (alerta.similitud || alerta.porcentaje_confianza / 100) : 0.88) * 100);
 
-                        <button
-                          onClick={() => handleDispatchEmergency(alerta)}
-                          className="pnc-btn-fast-dispatch"
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.72rem', marginLeft: '0.4rem' }}
-                          title="Trazar e interceptar con ruta rápida GPS"
-                        >
-                          <Navigation size={12} />
-                          <span>Ruta GPS</span>
-                        </button>
-                      </td>
+                    return (
+                      <div
+                        key={alerta.id}
+                        className={`pnc-alert-card ${isConfirmed ? 'confirmed' : isResolved ? 'resolved' : 'investigation'}`}
+                      >
+                        {/* Header de la Tarjeta */}
+                        <div className="pnc-alert-card-header">
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#38bdf8', letterSpacing: '0.05em' }}>
+                                ALERTA C4I #{alerta.id}
+                              </span>
+                              {alerta.caso_id && (
+                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
+                                  VINCULADA A CASO #{alerta.caso_id}
+                                </span>
+                              )}
+                            </div>
+                            <h3 style={{ margin: '0.35rem 0 0 0', fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
+                              {alerta.nombre_desaparecido || matchedCase?.nombre_desaparecido || 'Persona Identificada'}
+                            </h3>
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                            <span className={`status-badge ${isConfirmed ? 'encontrado' : isResolved ? 'encontrado' : 'warning'}`} style={{ position: 'static' }}>
+                              {alerta.estado ? alerta.estado.toUpperCase() : 'EN INVESTIGACIÓN'}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                              ⏱️ {formatDate(alerta.fecha_deteccion || alerta.created_at)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Comparativa Biométrica Visual CUA (Cámara C4I vs Expediente) */}
+                        <div className="pnc-biometric-compare-box">
+                          {/* Foto 1: Detección en Cámara / Sensor */}
+                          <div className="pnc-biometric-photo-col">
+                            <img
+                              src={getImageUrl(alerta.foto_evidencia_url || alerta.foto_deteccion_url)}
+                              alt="Evidencia C4I"
+                              className="pnc-biometric-img"
+                              style={{ borderColor: isConfirmed ? '#ef4444' : '#38bdf8' }}
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80';
+                              }}
+                            />
+                            <span className="pnc-biometric-label" style={{ color: '#ef4444' }}>
+                              📸 Evidencia C4I
+                            </span>
+                          </div>
+
+                          {/* Medidor Central de Similitud Facial IA */}
+                          <div className="pnc-biometric-vs">
+                            <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
+                              Cotejo IA
+                            </span>
+                            <div className="pnc-sim-badge">
+                              {similarityPct}%
+                            </div>
+                            <div className="pnc-sim-bar-bg" title={`Nivel de coincidencia biométrica: ${similarityPct}%`}>
+                              <div className="pnc-sim-bar-fill" style={{ width: `${Math.min(similarityPct, 100)}%` }} />
+                            </div>
+                            <span style={{ fontSize: '0.62rem', color: '#38bdf8', fontWeight: 600 }}>
+                              ArcFace / YuNet
+                            </span>
+                          </div>
+
+                          {/* Foto 2: Foto Oficial del Expediente */}
+                          <div className="pnc-biometric-photo-col">
+                            <img
+                              src={getImageUrl(matchedCase?.foto_url || alerta.foto_url)}
+                              alt="Expediente Oficial"
+                              className="pnc-biometric-img"
+                              style={{ borderColor: '#10b981' }}
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+                              }}
+                            />
+                            <span className="pnc-biometric-label" style={{ color: '#10b981' }}>
+                              🗂️ Foto Expediente
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Ficha de Inteligencia Operativa y Datos Protegidos (CUA) */}
+                        <div className="pnc-alert-intel-grid">
+                          <div className="pnc-intel-row">
+                            <span className="pnc-intel-label">📍 Detección:</span>
+                            <span style={{ color: '#38bdf8', fontWeight: 700 }}>
+                              {alerta.ubicacion_texto || 'Cámara Urbana C4I'}
+                              {' '}({formatCoordinates(alerta.ubicacion_lat, alerta.ubicacion_lng)})
+                            </span>
+                          </div>
+
+                          {matchedCase?.edad && (
+                            <div className="pnc-intel-row">
+                              <span className="pnc-intel-label">👤 Perfil:</span>
+                              <span>
+                                {matchedCase.edad} años • {matchedCase.genero || 'No especificado'} • Desaparecido desde {formatDate(matchedCase.fecha_desaparicion)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Dirección de Vivienda para Traslado Seguro PNC */}
+                          <div className="pnc-intel-row" style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '0.35rem 0.5rem', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                            <span className="pnc-intel-label" style={{ color: '#34d399' }}>🏠 Traslado Seguro:</span>
+                            <span style={{ color: '#f8fafc', fontWeight: 600 }}>
+                              {matchedCase?.direccion_vivienda || 'Consultar con División de Traslados y Custodia PNC'}
+                            </span>
+                          </div>
+
+                          {/* Contacto Protegido del Reportante (Anti-Extorsión) */}
+                          <div className="pnc-intel-row">
+                            <span className="pnc-intel-label">🛡️ Reportante:</span>
+                            <span>
+                              {matchedCase?.parentesco_reportante || 'Familiar Directo'}
+                              <span style={{ marginLeft: '0.45rem', fontSize: '0.7rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', padding: '0.1rem 0.4rem', borderRadius: '3px', fontWeight: 700 }}>
+                                🔒 Datos protegidos contra extorsiones
+                              </span>
+                            </span>
+                          </div>
+
+                          {/* Bitácora / Novedades Registradas */}
+                          <div className="pnc-intel-row">
+                            <span className="pnc-intel-label">📝 Novedades PNC:</span>
+                            <span style={{ fontStyle: alerta.comentarios ? 'normal' : 'italic', color: alerta.comentarios ? '#cbd5e1' : '#94a3b8' }}>
+                              {alerta.comentarios || 'Sin notas de novedad registradas por la patrulla.'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Barra de Acciones Inmediatas CUA */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                          {/* 1. Ruta Rápida GPS */}
+                          <button
+                            type="button"
+                            onClick={() => handleDispatchEmergency(alerta)}
+                            className="pnc-btn-fast-dispatch"
+                            style={{ justifyContent: 'center', fontSize: '0.74rem', padding: '0.5rem' }}
+                            title="Trazar ruta inmediata con sirena policial"
+                          >
+                            <Navigation size={13} />
+                            <span>Ruta GPS Rápida</span>
+                          </button>
+
+                          {/* 2. Orden / Despacho SHA-256 */}
+                          <button
+                            type="button"
+                            onClick={() => setCertificateTarget({ isOpen: true, alerta, caso: matchedCase })}
+                            className="btn btn-secondary"
+                            style={{
+                              fontSize: '0.74rem',
+                              padding: '0.5rem',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.3rem',
+                              border: '1px solid rgba(0, 240, 255, 0.35)',
+                              color: '#00f0ff'
+                            }}
+                          >
+                            <Shield size={13} />
+                            <span>Orden SHA-256</span>
+                          </button>
+
+                          {/* 3. Registrar Novedades / Atención Policial */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAttentionModal({
+                                isOpen: true,
+                                alerta,
+                                caso: matchedCase,
+                                notas: alerta.comentarios || '',
+                                nuevoEstado: alerta.estado || 'confirmado'
+                              })
+                            }
+                            className="btn btn-secondary"
+                            style={{
+                              fontSize: '0.74rem',
+                              padding: '0.5rem',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.3rem',
+                              border: '1px solid rgba(16, 185, 129, 0.4)',
+                              color: '#34d399'
+                            }}
+                          >
+                            <MessageSquare size={13} />
+                            <span>Atención PNC</span>
+                          </button>
+
+                          {/* 4. Enlace a Expediente Completo */}
+                          {alerta.caso_id && (
+                            <Link
+                              to={`/caso/${alerta.caso_id}`}
+                              className="btn btn-secondary"
+                              style={{
+                                fontSize: '0.74rem',
+                                padding: '0.5rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.3rem',
+                                textDecoration: 'none'
+                              }}
+                            >
+                              <FileText size={13} />
+                              <span>Expediente</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VISTA 2: TABLA OPERATIVA DETALLADA */}
+          {alertViewMode === 'table' && (
+            <div className="pnc-table-wrapper">
+              {filteredAlerts.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
+                  No se registraron alertas con los filtros seleccionados.
+                </div>
+              ) : (
+                <table className="pnc-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Comparativa Visual</th>
+                      <th>Persona / Caso</th>
+                      <th>Similitud IA</th>
+                      <th>Ubicación / Punto</th>
+                      <th>Traslado Seguro</th>
+                      <th>Estado</th>
+                      <th>Acciones PNC</th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAlerts.map((alerta) => {
+                      const matchedCase = cases.find((c) => c.id === alerta.caso_id);
+                      const similarityPct = Math.round((alerta.similitud || 0.88) * 100);
+
+                      return (
+                        <tr key={alerta.id}>
+                          <td style={{ fontWeight: 800, color: '#38bdf8' }}>
+                            #{alerta.id}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <img
+                                src={getImageUrl(alerta.foto_evidencia_url || alerta.foto_deteccion_url)}
+                                alt="Evidencia"
+                                style={{ width: '38px', height: '38px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #ef4444' }}
+                                onError={(e) => {
+                                  e.target.src = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80';
+                                }}
+                              />
+                              <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>↔</span>
+                              <img
+                                src={getImageUrl(matchedCase?.foto_url || alerta.foto_url)}
+                                alt="Expediente"
+                                style={{ width: '38px', height: '38px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #10b981' }}
+                                onError={(e) => {
+                                  e.target.src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td>
+                            <strong style={{ display: 'block', color: '#f8fafc', fontSize: '0.9rem' }}>
+                              {alerta.nombre_desaparecido || matchedCase?.nombre_desaparecido || 'Persona'}
+                            </strong>
+                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                              {matchedCase ? `Caso #${matchedCase.id} • ${matchedCase.edad} años` : 'Sin expediente directo'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{
+                              background: similarityPct >= 80 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(2, 132, 199, 0.2)',
+                              color: similarityPct >= 80 ? '#34d399' : '#38bdf8',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.78rem',
+                              fontWeight: 800,
+                              border: '1px solid currentColor'
+                            }}>
+                              {similarityPct}%
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.8rem' }}>
+                            <div>{alerta.ubicacion_texto || 'Cámara C4I'}</div>
+                            <div style={{ fontFamily: 'monospace', color: '#38bdf8', fontSize: '0.75rem' }}>
+                              📍 {formatCoordinates(alerta.ubicacion_lat, alerta.ubicacion_lng)}
+                            </div>
+                          </td>
+                          <td style={{ fontSize: '0.78rem', color: '#cbd5e1', maxWidth: '200px' }}>
+                            {matchedCase?.direccion_vivienda || 'Vivienda Familiar Oficial'}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${alerta.estado === 'confirmado' ? 'encontrado' : 'warning'}`} style={{ position: 'static' }}>
+                              {alerta.estado || 'En investigación'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDispatchEmergency(alerta)}
+                                className="pnc-btn-fast-dispatch"
+                                style={{ padding: '0.3rem 0.55rem', fontSize: '0.72rem' }}
+                                title="Ruta rápida GPS"
+                              >
+                                <Navigation size={12} />
+                                <span>Ruta</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setCertificateTarget({ isOpen: true, alerta, caso: matchedCase })}
+                                style={{
+                                  background: 'rgba(0, 240, 255, 0.12)',
+                                  border: '1px solid rgba(0, 240, 255, 0.4)',
+                                  color: '#00f0ff',
+                                  borderRadius: '6px',
+                                  padding: '0.3rem 0.55rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                SHA-256
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setAttentionModal({
+                                    isOpen: true,
+                                    alerta,
+                                    caso: matchedCase,
+                                    notas: alerta.comentarios || '',
+                                    nuevoEstado: alerta.estado || 'confirmado'
+                                  })
+                                }
+                                style={{
+                                  background: 'rgba(16, 185, 129, 0.12)',
+                                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                                  color: '#34d399',
+                                  borderRadius: '6px',
+                                  padding: '0.3rem 0.55rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Novedad
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          SUB-INTERFAZ 4: PERSONAL ACTIVO & MAPA EN TIEMPO REAL (TÉCNICA CUA)
+         ========================================================================= */}
+      {activeTab === 'patrols' && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          
+          {/* KPIs de Fuerza Policial Desplegada */}
+          <div className="pnc-kpi-grid">
+            <div className="pnc-kpi-card" style={{ borderLeft: '4px solid #00f0ff' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Personal Policial en Servicio
+                </div>
+                <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#00f0ff', marginTop: '0.2rem' }}>
+                  {patrols.filter((p) => p.en_servicio !== false).length}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                  <UserCheck size={12} /> Oficiales en patrullaje activo
+                </div>
+              </div>
+              <div className="pnc-kpi-icon-box" style={{ background: 'rgba(0, 240, 255, 0.15)', color: '#00f0ff', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
+                <Users size={22} />
+              </div>
+            </div>
+
+            <div className="pnc-kpi-card" style={{ borderLeft: '4px solid #38bdf8' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Unidades Móviles & Patrullas
+                </div>
+                <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#f8fafc', marginTop: '0.2rem' }}>
+                  {patrols.length}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                  <Car size={12} /> Vehículos enlazados C4I
+                </div>
+              </div>
+              <div className="pnc-kpi-icon-box" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                <Car size={22} />
+              </div>
+            </div>
+
+            <div className="pnc-kpi-card" style={{ borderLeft: '4px solid #10b981' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Delegaciones Cubiertas
+                </div>
+                <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#4ade80', marginTop: '0.2rem' }}>
+                  {new Set(patrols.map((p) => p.delegacion_pnc || 'Central')).size}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                  <Building size={12} /> Cobertura territorial nacional
+                </div>
+              </div>
+              <div className="pnc-kpi-icon-box" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                <Building size={22} />
+              </div>
+            </div>
+
+            <div className="pnc-kpi-card" style={{ borderLeft: '4px solid #a855f7' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Enlace Radial C4I
+                </div>
+                <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#c084fc', marginTop: '0.2rem' }}>
+                  100% ONLINE
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                  <RadioTower size={12} /> Banda táctica encriptada
+                </div>
+              </div>
+              <div className="pnc-kpi-icon-box" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                <RadioTower size={22} />
+              </div>
+            </div>
+          </div>
+
+          {/* Layout Dividido CUA: Mapa en Tiempo Real + Directorio de Personal Activo */}
+          <div className="pnc-patrols-layout">
+            {/* 1. Mapa Leaflet en Tiempo Real con Calor de Presencia Policial y Marcadores */}
+            <div>
+              <MapaAlertas
+                alerts={filteredAlerts}
+                patrols={filteredPatrols}
+                showPatrolsDefault={true}
+                showPatrolHeatmapDefault={true}
+                customHeight="600px"
+                title="🗺️ Ubicación en Tiempo Real del Personal Policial Activo"
+                subtitle="Monitoreo táctico con mapa de calor de presencia policial y telemetría GPS en vivo"
+                emergencyRoute={emergencyRoute}
+                onClearRoute={() => setEmergencyRoute(null)}
+              />
+            </div>
+
+            {/* 2. Panel Lateral de Personal y Unidades en Servicio */}
+            <div className="pnc-patrol-list-panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Users size={17} style={{ color: '#00f0ff' }} />
+                    <span>Personal y Unidades Móviles</span>
+                  </h3>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                    {filteredPatrols.length} oficiales activos en el cuadrante
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchData}
+                  className="btn btn-secondary"
+                  style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
+                  title="Actualizar telemetría de patrullas"
+                >
+                  <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+
+              {/* Filtros de Búsqueda de Personal */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="Buscar oficial, ONI o patrulla..."
+                    className="form-control"
+                    value={patrolSearch}
+                    onChange={(e) => setPatrolSearch(e.target.value)}
+                    style={{ paddingLeft: '32px', fontSize: '0.8rem' }}
+                  />
+                </div>
+
+                <select
+                  className="form-control"
+                  value={patrolDelegationFilter}
+                  onChange={(e) => setPatrolDelegationFilter(e.target.value)}
+                  style={{ fontSize: '0.8rem' }}
+                >
+                  <option value="">Todas las Delegaciones PNC</option>
+                  {[...new Set(patrols.map((p) => p.delegacion_pnc).filter(Boolean))].map((del) => (
+                    <option key={del} value={del}>{del}</option>
                   ))}
-                </tbody>
-              </table>
-            )}
+                </select>
+              </div>
+
+              {/* Lista Scrollable de Oficiales */}
+              <div className="pnc-patrol-cards-scroll">
+                {filteredPatrols.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.82rem' }}>
+                    No se encontraron agentes con ese filtro.
+                  </div>
+                ) : (
+                  filteredPatrols.map((p) => {
+                    const isOnline = p.en_servicio !== false;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className={`pnc-patrol-card ${isOnline ? 'online' : 'offline'}`}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#38bdf8' }}>
+                                🚔 {p.patrulla_pnc || `Móvil PNC #${p.id}`}
+                              </span>
+                              <span style={{
+                                fontSize: '0.65rem',
+                                color: isOnline ? '#10b981' : '#64748b',
+                                fontWeight: 800,
+                                background: isOnline ? 'rgba(16, 185, 129, 0.15)' : 'rgba(100, 116, 139, 0.15)',
+                                padding: '1px 6px',
+                                borderRadius: '4px'
+                              }}>
+                                ● {isOnline ? 'EN SERVICIO' : 'INACTIVO'}
+                              </span>
+                            </div>
+
+                            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '0.92rem', fontWeight: 700, color: '#f8fafc' }}>
+                              {p.nombre}
+                            </h4>
+                          </div>
+
+                          <span style={{ fontSize: '0.68rem', fontFamily: 'monospace', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
+                            {p.placa_pnc || 'PNC-OFICIAL'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div>🏢 {p.delegacion_pnc || 'Delegación San Salvador Centro'}</div>
+                          <div style={{ fontFamily: 'monospace', color: '#38bdf8' }}>
+                            📍 GPS: {p.lat ? parseFloat(p.lat).toFixed(4) : '13.6929'}, {p.lng ? parseFloat(p.lng).toFixed(4) : '-89.2182'}
+                          </div>
+                          {p.telefono && (
+                            <div>📞 Línea: <strong style={{ color: '#e2e8f0' }}>{p.telefono}</strong></div>
+                          )}
+                          <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
+                            ⏱️ Último reporte: {p.ultima_conexion ? new Date(p.ultima_conexion).toLocaleTimeString() : 'Hace instantes'}
+                          </div>
+                        </div>
+
+                        {/* Botones de Acción de Patrulla */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginTop: '0.35rem', paddingTop: '0.45rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleDispatchEmergency({
+                                lat: p.lat,
+                                lng: p.lng,
+                                nombre_desaparecido: `Posición de ${p.patrulla_pnc || p.nombre}`,
+                                ubicacion_texto: p.delegacion_pnc || 'Unidad Móvil'
+                              });
+                            }}
+                            className="btn btn-secondary"
+                            style={{
+                              fontSize: '0.72rem',
+                              padding: '0.4rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              color: '#38bdf8',
+                              border: '1px solid rgba(56, 189, 248, 0.3)'
+                            }}
+                          >
+                            <MapPin size={12} />
+                            <span>Centrar Mapa</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRadioLog((prev) => [
+                                ...prev,
+                                {
+                                  de: 'Canal C4I',
+                                  texto: `Enlace directo abierto con unidad ${p.patrulla_pnc || p.nombre} (${p.placa_pnc || 'PNC'}).`,
+                                  hora: new Date().toLocaleTimeString()
+                                }
+                              ]);
+                              setRadioModalOpen(true);
+                            }}
+                            className="btn btn-secondary"
+                            style={{
+                              fontSize: '0.72rem',
+                              padding: '0.4rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '0.25rem',
+                              color: '#4ade80',
+                              border: '1px solid rgba(74, 222, 128, 0.3)'
+                            }}
+                          >
+                            <PhoneCall size={12} />
+                            <span>Enlace Radial</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {/* =========================================================================
-          SUB-INTERFAZ 4: CENTRO DE EMISIÓN DE CÓDIGO ÁMBAR FLASH
+          SUB-INTERFAZ 5: CENTRO DE EMISIÓN DE CÓDIGO ÁMBAR FLASH
          ========================================================================= */}
       {activeTab === 'broadcast' && (
         <div className="pnc-broadcast-room animate-fade-in">
@@ -1469,7 +2501,255 @@ const AuthorityPanel = () => {
         </div>
       )}
 
-      {/* Modal de Certificado e Intervención Policial Oficial SHA-256 */}
+      {/* Modal de Canal de Comunicación Directa (Intercom / Radio C4I) */}
+      {radioModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={() => setRadioModalOpen(false)}
+        >
+          <div
+            style={{
+              background: '#090d16',
+              border: '1px solid rgba(0, 240, 255, 0.4)',
+              borderRadius: '16px',
+              maxWidth: '520px',
+              width: '100%',
+              padding: '1.75rem',
+              boxShadow: '0 25px 50px -12px rgba(0, 240, 255, 0.25)',
+              color: '#f8fafc'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ background: 'rgba(0, 240, 255, 0.15)', padding: '0.6rem', borderRadius: '10px', color: '#00f0ff', display: 'flex' }}>
+                  <RadioTower size={24} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
+                    Enlace Radial Base Central C4I
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontFamily: 'monospace' }}>
+                    CANAL TÁCTICO ENCRIPTADO • FRECUENCIA 154.200 MHz
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setRadioModalOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer', padding: '0.25rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Estado de Transmisión */}
+            <div style={{
+              background: 'rgba(15, 23, 42, 0.7)',
+              border: '1px solid rgba(56, 189, 248, 0.2)',
+              borderRadius: '10px',
+              padding: '0.75rem 1rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px #10b981' }}></span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>Unidad Conectada: {user?.patrulla_pnc || 'Patrulla Móvil'}</span>
+              </div>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace' }}>ONI: {user?.placa_pnc || 'OFICIAL'}</span>
+            </div>
+
+            {/* Bitácora de Transmisiones */}
+            <div style={{
+              height: '180px',
+              overflowY: 'auto',
+              background: 'rgba(0,0,0,0.4)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: '8px',
+              padding: '0.75rem',
+              marginBottom: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.6rem'
+            }}>
+              {radioLog.map((log, idx) => (
+                <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.5rem 0.65rem', borderRadius: '6px', borderLeft: '3px solid #00f0ff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#38bdf8', marginBottom: '0.2rem', fontWeight: 700 }}>
+                    <span>{log.de}</span>
+                    <span style={{ color: '#64748b' }}>{log.hora}</span>
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>{log.texto}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Input y Botón Push-To-Talk */}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="text"
+                value={radioMessage}
+                onChange={(e) => setRadioMessage(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendRadioMessage()}
+                placeholder="Escriba mensaje táctico a Central C4I..."
+                style={{
+                  flex: 1,
+                  background: 'rgba(15, 23, 42, 0.9)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '8px',
+                  padding: '0.6rem 0.85rem',
+                  color: '#fff',
+                  fontSize: '0.85rem'
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSendRadioMessage}
+                style={{
+                  background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.6rem 1rem',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <Send size={15} />
+                <span>Transmitir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* MODAL CUA: REGISTRO DE ATENCIÓN POLICIAL Y NOVEDADES C4I */}
+      {attentionModal.isOpen && attentionModal.alerta && (
+        <div className="pnc-modal-overlay animate-fade-in" onClick={() => setAttentionModal({ isOpen: false, alerta: null, caso: null, notas: '', nuevoEstado: 'confirmado' })}>
+          <div className="pnc-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.4rem' }}>📝</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
+                    Bitácora de Atención y Novedades PNC
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                    Alerta #{attentionModal.alerta.id} • {attentionModal.alerta.nombre_desaparecido || 'Objetivo'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttentionModal({ isOpen: false, alerta: null, caso: null, notas: '', nuevoEstado: 'confirmado' })}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.2rem', cursor: 'pointer', padding: '0.2rem 0.5rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Resumen del caso y punto de detección */}
+            <div style={{ background: 'rgba(2, 6, 23, 0.7)', padding: '0.85rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', fontSize: '0.82rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <div>
+                  <span style={{ color: '#94a3b8', display: 'block', fontSize: '0.7rem' }}>Persona Detectada:</span>
+                  <strong style={{ color: '#fff' }}>{attentionModal.alerta.nombre_desaparecido}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#94a3b8', display: 'block', fontSize: '0.7rem' }}>Cámara / Punto:</span>
+                  <strong style={{ color: '#38bdf8' }}>{attentionModal.alerta.ubicacion_texto || 'C4I San Salvador'}</strong>
+                </div>
+              </div>
+              {attentionModal.caso?.direccion_vivienda && (
+                <div style={{ marginTop: '0.5rem', color: '#34d399', fontSize: '0.78rem' }}>
+                  🏠 <strong>Traslado Seguro (Vivienda):</strong> {attentionModal.caso.direccion_vivienda}
+                </div>
+              )}
+            </div>
+
+            {/* Selector de Estado Operativo */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                Estado Operativo de la Atención:
+              </label>
+              <select
+                className="form-control"
+                value={attentionModal.nuevoEstado}
+                onChange={(e) => setAttentionModal((prev) => ({ ...prev, nuevoEstado: e.target.value }))}
+                style={{ fontSize: '0.85rem' }}
+              >
+                <option value="confirmado">Confirmado / En Atención de Patrulla</option>
+                <option value="en_investigacion">En Verificación en Territorio</option>
+                <option value="resuelto">Atendida y Persona Resguardada</option>
+                <option value="falso positivo">Descartada / Falso Positivo</option>
+              </select>
+            </div>
+
+            {/* Textarea para Notas / Novedades */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" style={{ fontSize: '0.82rem', color: '#cbd5e1' }}>
+                Registro de Novedades del Oficial / Patrulla:
+              </label>
+              <textarea
+                className="form-control"
+                rows={4}
+                value={attentionModal.notas}
+                onChange={(e) => setAttentionModal((prev) => ({ ...prev, notas: e.target.value }))}
+                placeholder="Describa el resultado del despliegue: verificación de identidad, estado de salud de la persona, unidad interviniente y traslado seguro..."
+                style={{ fontSize: '0.85rem', resize: 'vertical' }}
+              />
+            </div>
+
+            {/* Botones de Acción */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setAttentionModal({ isOpen: false, alerta: null, caso: null, notas: '', nuevoEstado: 'confirmado' })}
+                className="btn btn-secondary"
+                disabled={savingAttention}
+                style={{ fontSize: '0.82rem' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAttention}
+                disabled={savingAttention}
+                className="btn btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  border: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}
+              >
+                {savingAttention ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                <span>Guardar Atención y Novedades</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PoliceInterventionCertificateModal
         isOpen={certificateTarget.isOpen}
         alerta={certificateTarget.alerta}

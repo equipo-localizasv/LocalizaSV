@@ -15,8 +15,8 @@ class AutonomousSurveillanceService {
   constructor() {
     this.intervalId = null;
     this.isRunning = false;
-    this.scanIntervalMs = 1000; // Escaneo ultra-rápido cada 1 segundo por cámara
-    this.similarityThreshold = 52.0; // Umbral óptimo de detección para streams de cámara IP (%)
+    this.scanIntervalMs = 7000; // Escaneo balanceado cada 7 segundos para permitir fluidez máxima (30 FPS) en el video
+    this.similarityThreshold = 70.0; // Umbral estricto pericial (>= 70.0%) para eliminar falsos positivos y evitar confusiones de personas
     this.cameraConfigs = {}; // { [camId]: { enabled: true } }
     this.isCameraScanning = {}; // Prevenir acumulación de llamadas concurrentes por cámara
     this.cooldowns = new Map(); // key: `${camId}_${casoId}` -> timestamp
@@ -100,16 +100,99 @@ class AutonomousSurveillanceService {
   }
 
   /**
+   * Extraer un solo fotograma de un flujo MJPEG sin bloquear el sensor de la cámara
+   */
+  async fetchSingleMjpegFrame(streamUrl, timeoutMs = 2500) {
+    return new Promise((resolve) => {
+      const httpModule = streamUrl.startsWith('https') ? require('https') : require('http');
+      let resolved = false;
+      let chunks = [];
+      let req = null;
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          try { if (req) req.destroy(); } catch (e) {}
+          resolve(null);
+        }
+      }, timeoutMs);
+
+      try {
+        req = httpModule.get(streamUrl, (res) => {
+          if (res.statusCode !== 200) {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timer);
+              try { req.destroy(); } catch (e) {}
+              resolve(null);
+            }
+            return;
+          }
+
+          res.on('data', (chunk) => {
+            if (resolved) return;
+            chunks.push(chunk);
+            if (chunk.includes(0xd9) || chunks.length > 25) {
+              const combined = Buffer.concat(chunks);
+              const startIdx = combined.indexOf(Buffer.from([0xff, 0xd8]));
+              const endIdx = combined.indexOf(Buffer.from([0xff, 0xd9]), startIdx + 2);
+              if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                resolved = true;
+                clearTimeout(timer);
+                const frameBuf = combined.slice(startIdx, endIdx + 2);
+                try { req.destroy(); } catch (e) {}
+                resolve(frameBuf);
+              }
+            }
+          });
+
+          res.on('error', () => {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timer);
+              try { req.destroy(); } catch (e) {}
+              resolve(null);
+            }
+          });
+        });
+
+        req.on('error', () => {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timer);
+            try { req.destroy(); } catch (e) {}
+            resolve(null);
+          }
+        });
+      } catch (err) {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          resolve(null);
+        }
+      }
+    });
+  }
+
+  /**
    * Obtener vector biométrico de un caso (con caché en memoria para velocidad)
    */
   async getCaseEmbedding(caso) {
-    if (!caso || !caso.foto_url) return null;
+    if (!caso) return null;
 
     if (this.cachedCaseEmbeddings.has(caso.id)) {
       return this.cachedCaseEmbeddings.get(caso.id);
     }
 
-    // Extraer con el escáner
+    // Prioridad 1: Vector biométrico verificado ya almacenado en base de datos
+    if (caso.biometria_insightface && Array.isArray(caso.biometria_insightface.embedding_512d) && caso.biometria_insightface.embedding_512d.length === 512) {
+      this.cachedCaseEmbeddings.set(caso.id, caso.biometria_insightface.embedding_512d);
+      return caso.biometria_insightface.embedding_512d;
+    }
+
+    if (!caso.foto_url) return null;
+
+    // Prioridad 2: Extraer con el escáner si no venía precargado
     const bioCase = await insightFaceService.scanFace(caso.foto_url);
     if (bioCase && bioCase.face_detected && bioCase.embedding_512d) {
       this.cachedCaseEmbeddings.set(caso.id, bioCase.embedding_512d);
@@ -196,19 +279,50 @@ class AutonomousSurveillanceService {
 
       if (!fs.existsSync(tempFilePath)) return;
     } else {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1800);
-
+      // Prioridad 1: Leer el fotograma ya disponible en RAM (del stream en vivo pasivo o del transmisor móvil)
+      let gotMemFrame = false;
       try {
-        const res = await fetch(snapshotUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!res.ok) return;
-        const arr = await res.arrayBuffer();
-        fs.writeFileSync(tempFilePath, Buffer.from(arr));
-      } catch (fetchErr) {
-        clearTimeout(timeout);
-        return;
+        const cameraController = require('../controllers/cameraController');
+        const liveSample = cameraController.latestLiveStreamSamples?.get(String(cam.id));
+        const memFrame = cameraController.activeCameraBuffers?.get(String(cam.id));
+        const bestSource = (liveSample && (Date.now() - liveSample.timestamp < 15000)) ? liveSample : memFrame;
+
+        if (bestSource && bestSource.buffer && (Date.now() - bestSource.timestamp < 15000)) {
+          fs.writeFileSync(tempFilePath, bestSource.buffer);
+          gotMemFrame = true;
+        }
+      } catch (e) {}
+
+      // Prioridad 2: Extraer fotograma directo del flujo MJPEG (Cero congelamiento del sensor por /shot.jpg)
+      if (!gotMemFrame) {
+        const streamTarget = cam.stream_url || (cam.base_url ? `${cam.base_url}/video` : null);
+        if (streamTarget) {
+          const frameBuffer = await this.fetchSingleMjpegFrame(streamTarget, 2500);
+          if (frameBuffer && frameBuffer.length > 1000) {
+            fs.writeFileSync(tempFilePath, frameBuffer);
+            gotMemFrame = true;
+          }
+        }
       }
+
+      // Prioridad 3: Si falló la lectura MJPEG, usar snapshot HTTP convencional como respaldo
+      if (!gotMemFrame && snapshotUrl) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2000);
+
+        try {
+          const res = await fetch(snapshotUrl, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (res.ok) {
+            const arr = await res.arrayBuffer();
+            fs.writeFileSync(tempFilePath, Buffer.from(arr));
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+        }
+      }
+
+      if (!fs.existsSync(tempFilePath)) return;
     }
 
     this.telemetry.totalScans++;
@@ -238,17 +352,28 @@ class AutonomousSurveillanceService {
 
       this.telemetry.realFacesDetected++;
 
-      // ================= FASE 2: EVALUACIÓN DE CASOS Y PARENTESCO (MULTI-FACE ENGINE) =================
-      const facesInFrame = (scanResult.all_faces && scanResult.all_faces.length > 0)
-        ? scanResult.all_faces
+      // ================= FASE 2: EVALUACIÓN DE CASOS Y PARENTESCO (MULTI-FACE ENGINE JERÁRQUICO) =================
+      let facesInFrame = (scanResult.all_faces && scanResult.all_faces.length > 0)
+        ? [...scanResult.all_faces]
         : [scanResult];
+
+      // Ordenar rostros por prominencia: tamaño (área) y nitidez, para evaluar primero al sujeto principal
+      facesInFrame.sort((a, b) => {
+        const areaA = (a.width || 100) * (a.height || 100);
+        const areaB = (b.width || 100) * (b.height || 100);
+        return areaB - areaA;
+      });
 
       let bestMatch = null;
       let highestSimilarity = 0;
 
+      // 1. Evaluar primero el rostro más prominente / frontal (Sujeto Principal)
       for (let faceIdx = 0; faceIdx < facesInFrame.length; faceIdx++) {
         const currentFace = facesInFrame[faceIdx];
         if (!currentFace.embedding_512d) continue;
+
+        let faceBestCase = null;
+        let faceHighestSim = 0;
 
         for (const caso of activeCases) {
           const caseEmbedding = await this.getCaseEmbedding(caso);
@@ -259,15 +384,28 @@ class AutonomousSurveillanceService {
             caseEmbedding
           );
 
-          if (comp.percentage > highestSimilarity) {
-            highestSimilarity = comp.percentage;
-            bestMatch = {
+          if (comp.percentage > faceHighestSim) {
+            faceHighestSim = comp.percentage;
+            faceBestCase = {
               caso,
               comp,
               face: currentFace,
               faceIndex: faceIdx
             };
           }
+        }
+
+        // Si el rostro principal alcanza el umbral de coincidencia, se asigna con prioridad absoluta
+        if (faceBestCase && faceHighestSim >= this.similarityThreshold) {
+          bestMatch = faceBestCase;
+          highestSimilarity = faceHighestSim;
+          break; // Sujeto principal identificado con certeza pericial, no confundir con transeúntes secundarios
+        }
+
+        // Si no supera el umbral pero es la mayor similitud registrada para telemetría
+        if (faceHighestSim > highestSimilarity) {
+          highestSimilarity = faceHighestSim;
+          bestMatch = faceBestCase;
         }
       }
 

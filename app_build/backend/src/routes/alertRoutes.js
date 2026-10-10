@@ -9,7 +9,7 @@ router.get('/activas', alertController.getActiveAlerts);
 // Get all pending alerts (used by Moderator panel)
 router.get('/pendientes', alertController.getPendingAlerts);
 
-// Update alert status (restricted to Moderator and Authority)
-router.put('/:id', authMiddleware, roleMiddleware(['moderador', 'autoridad']), express.json(), alertController.updateAlertStatus);
+// Update alert status (restricted to Moderator, Authority and Administrator)
+router.put('/:id', authMiddleware, roleMiddleware(['moderador', 'autoridad', 'administrador']), express.json(), alertController.updateAlertStatus);
 
 module.exports = router;

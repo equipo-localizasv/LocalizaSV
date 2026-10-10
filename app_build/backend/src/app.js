@@ -14,6 +14,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const cameraRoutes = require('./routes/cameraRoutes');
 const sightingRoutes = require('./routes/sightingRoutes');
 const biometriaRoutes = require('./routes/biometriaRoutes');
+const patrolRoutes = require('./routes/patrolRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -67,7 +68,12 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', (req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/cases', caseRoutes);
@@ -76,10 +82,12 @@ app.use('/api/detecciones', detectionRoutes);
 app.use('/api/alertas', alertRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/camaras', cameraRoutes);
+app.use('/api/cameras', cameraRoutes);
 app.use('/api/avistamientos', sightingRoutes);
 if (biometriaRoutes) {
     app.use('/api/biometria', biometriaRoutes);
 }
+app.use('/api/patrullas', patrolRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: 'LocalizaSV API running with WebSocket support' });

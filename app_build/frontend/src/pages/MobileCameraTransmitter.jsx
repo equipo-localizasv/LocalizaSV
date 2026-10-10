@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api, { getServerBaseUrl } from '../services/api';
+import socketService from '../services/socket';
 
 const MobileCameraTransmitter = () => {
   const [transmitting, setTransmitting] = useState(false);
@@ -21,6 +22,8 @@ const MobileCameraTransmitter = () => {
 
   // Cargar lista de cámaras y limpiar cámara al desmontar
   useEffect(() => {
+    socketService.connect();
+
     api.get('/camaras')
       .then(res => {
         if (res.data && res.data.length > 0) {
@@ -74,11 +77,11 @@ const MobileCameraTransmitter = () => {
       }
 
       setTransmitting(true);
-      setStatusMsg('Transmisión C4I Activa en Tiempo Real');
+      setStatusMsg('Transmisión C4I Activa en Tiempo Real (Alta Fluidez)');
 
-      // Bucle de captura y envío de fotogramas (cada 400ms = 2.5 FPS suficiente para reconocimiento facial C4I ultra fluido)
+      // Bucle de captura y envío optimizado: 70ms = ~14 FPS continuo y fluido
       if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = setInterval(captureAndSendFrame, 400);
+      intervalRef.current = setInterval(captureAndSendFrame, 70);
     } catch (err) {
       console.error('Error al abrir cámara:', err);
       setStatusMsg('Error: No se pudo acceder a la cámara. Permita el acceso en el navegador.');
@@ -114,17 +117,39 @@ const MobileCameraTransmitter = () => {
     const canvas = canvasRef.current;
     if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
+    // Resolución estándar balanceada (640px de ancho)
     canvas.width = 640;
     canvas.height = Math.round((640 * video.videoHeight) / video.videoWidth);
 
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Comprimir en JPEG calidad 0.65 (rápido y liviano)
-    const base64Data = canvas.toDataURL('image/jpeg', 0.65);
+    // Calidad 0.52: Reduce el tamaño a ~18KB por frame para máxima velocidad y fluidez
+    const base64Data = canvas.toDataURL('image/jpeg', 0.52);
 
     isUploadingRef.current = true;
     const startT = Date.now();
+
+    // Prioridad 1: Transmisión directa por WebSockets (<15ms de latencia)
+    if (socketService.isConnected()) {
+      try {
+        socketService.send({
+          event: 'camera_frame_upload',
+          data: { camId: selectedCamId, image: base64Data }
+        });
+        const lat = Date.now() - startT;
+        setLastLatency(lat);
+        frameCountRef.current += 1;
+        setFramesSent(prev => prev + 1);
+      } catch (wsErr) {
+        // En caso de fallo transitorio, caerá al flujo HTTP
+      } finally {
+        isUploadingRef.current = false;
+      }
+      return;
+    }
+
+    // Prioridad 2: Transmisión HTTP ultrarrápida
     try {
       await api.post(`/camaras/${selectedCamId}/frame`, { image: base64Data });
       const lat = Date.now() - startT;
@@ -132,7 +157,7 @@ const MobileCameraTransmitter = () => {
       frameCountRef.current += 1;
       setFramesSent(prev => prev + 1);
     } catch (err) {
-      // Error transitorio de red ignorado para no interrumpir el flujo
+      // Ignorar errores transitorios para no congelar el flujo
     } finally {
       isUploadingRef.current = false;
     }

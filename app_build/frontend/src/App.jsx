@@ -1,9 +1,8 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import api from './services/api';
 import socketService from './services/socket';
 import Navbar from './components/Navbar';
-import LiveTelemetryTicker from './components/LiveTelemetryTicker';
 import Footer from './components/Footer';
 import ToastContainer from './components/ToastContainer';
 import Login from './pages/Login';
@@ -19,6 +18,15 @@ import MobileCameraTransmitter from './pages/MobileCameraTransmitter';
 export const AuthContext = createContext(null);
 
 // Componente guard para controlar acceso por rol
+// Componente para restablecer el scroll al inicio en cada cambio de ruta
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname]);
+  return null;
+};
+
 const RoleRoute = ({ user, allowedRoles, children }) => {
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -26,7 +34,7 @@ const RoleRoute = ({ user, allowedRoles, children }) => {
 
   const role = user.rol || 'ciudadano';
   if (allowedRoles && !allowedRoles.includes(role)) {
-    if (role === 'moderador') return <Navigate to="/moderacion" replace />;
+    if (role === 'moderador' || role === 'administrador') return <Navigate to="/moderacion" replace />;
     if (role === 'autoridad') return <Navigate to="/autoridades" replace />;
     return <Navigate to="/" replace />;
   }
@@ -40,7 +48,7 @@ const HomeRoute = ({ user }) => {
     return <Navigate to="/login" replace />;
   }
   const role = user.rol || 'ciudadano';
-  if (role === 'moderador') {
+  if (role === 'moderador' || role === 'administrador') {
     return <Navigate to="/moderacion" replace />;
   }
   if (role === 'autoridad') {
@@ -53,7 +61,7 @@ const HomeRoute = ({ user }) => {
 const AuthRedirect = ({ user, children }) => {
   if (user) {
     const role = user.rol || 'ciudadano';
-    if (role === 'moderador') return <Navigate to="/moderacion" replace />;
+    if (role === 'moderador' || role === 'administrador') return <Navigate to="/moderacion" replace />;
     if (role === 'autoridad') return <Navigate to="/autoridades" replace />;
     return <Navigate to="/" replace />;
   }
@@ -76,8 +84,26 @@ const App = () => {
           socketService.connect(token);
         } catch (error) {
           console.error('Error auto-login user:', error);
-          localStorage.removeItem('token');
-          setUser(null);
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            localStorage.removeItem('token');
+            setUser(null);
+          } else {
+            // Si hay fallo transitorio, decodificar payload para preservar sesión
+            try {
+              const base64Url = token.split('.')[1];
+              if (base64Url) {
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                const decoded = JSON.parse(jsonPayload);
+                if (decoded && (!decoded.exp || decoded.exp * 1000 > Date.now())) {
+                  setUser(decoded);
+                  socketService.connect(token);
+                }
+              }
+            } catch (e) {
+              console.warn('Fallo decodificación de token:', e);
+            }
+          }
         }
       }
       setLoading(false);
@@ -149,7 +175,6 @@ const App = () => {
       <Router>
         <div className="app-container">
           <Navbar />
-          <LiveTelemetryTicker />
           <div className="content-wrap">
             <Routes>
               {/* Ruta Principal: Redirige automáticamente al interfaz del rol */}
@@ -165,31 +190,27 @@ const App = () => {
                 element={<AuthRedirect user={user}><Register /></AuthRedirect>} 
               />
 
-              {/* Exclusivo para Ciudadanos */}
+              {/* Reporte de Casos (Ciudadanos, Moderadores y Administradores) */}
               <Route 
                 path="/reportar" 
                 element={
-                  <RoleRoute user={user} allowedRoles={['ciudadano']}>
+                  <RoleRoute user={user} allowedRoles={['ciudadano', 'moderador', 'administrador']}>
                     <CreateCase />
                   </RoleRoute>
                 } 
               />
 
-              {/* Detalle de Caso */}
+              {/* Detalle de Caso: Acceso público directo sin redirección involuntaria al login */}
               <Route 
                 path="/caso/:id" 
-                element={
-                  <RoleRoute user={user} allowedRoles={['ciudadano', 'moderador', 'autoridad']}>
-                    <CaseDetail />
-                  </RoleRoute>
-                } 
+                element={<CaseDetail />} 
               />
 
-              {/* Exclusivo para Moderadores */}
+              {/* Panel de Moderación y Centro de Control (Moderadores y Administradores) */}
               <Route 
                 path="/moderacion" 
                 element={
-                  <RoleRoute user={user} allowedRoles={['moderador']}>
+                  <RoleRoute user={user} allowedRoles={['moderador', 'administrador']}>
                     <ModeratorPanel />
                   </RoleRoute>
                 } 
@@ -209,7 +230,7 @@ const App = () => {
               <Route 
                 path="/perfil" 
                 element={
-                  <RoleRoute user={user} allowedRoles={['ciudadano', 'moderador', 'autoridad']}>
+                  <RoleRoute user={user} allowedRoles={['ciudadano', 'moderador', 'autoridad', 'administrador']}>
                     <Profile />
                   </RoleRoute>
                 } 

@@ -7,9 +7,11 @@ const { roleMiddleware } = require('../middlewares/authMiddleware');
 // Rutas de cámaras
 router.get('/', cameraController.getCameras);
 router.post('/', cameraController.createCamera);
+router.post('/community', cameraController.createCamera);
 router.put('/:id', cameraController.updateCamera);
 router.delete('/:id', cameraController.deleteCamera);
 router.get('/:id/ping', cameraController.pingCamera);
+router.post('/:id/optimize', cameraController.optimizeCameraStream);
 router.get('/:id/stream', cameraController.proxyStream);
 router.post('/:id/control', cameraController.controlCamera);
 router.get('/:id/snapshot', cameraController.proxySnapshot);

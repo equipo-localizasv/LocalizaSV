@@ -198,9 +198,9 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
           maxWidth: '1080px',
           width: '100%',
           background: 'rgba(7, 13, 29, 0.98)',
-          border: '1px solid rgba(0, 240, 255, 0.35)',
+          border: '1px solid rgba(2, 132, 199, 0.35)',
           borderRadius: '16px',
-          boxShadow: '0 25px 65px rgba(0, 0, 0, 0.95), 0 0 30px rgba(0, 240, 255, 0.15)',
+          boxShadow: '0 25px 65px rgba(0, 0, 0, 0.95), 0 0 30px rgba(2, 132, 199, 0.15)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -299,10 +299,10 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
           <button
             onClick={() => setActiveTab('capturas')}
             style={{
-              background: activeTab === 'capturas' ? 'rgba(0, 240, 255, 0.15)' : 'none',
+              background: activeTab === 'capturas' ? 'rgba(2, 132, 199, 0.15)' : 'none',
               border: 'none',
-              borderBottom: activeTab === 'capturas' ? '2px solid #00f0ff' : '2px solid transparent',
-              color: activeTab === 'capturas' ? '#00f0ff' : '#94a3b8',
+              borderBottom: activeTab === 'capturas' ? '2px solid #38bdf8' : '2px solid transparent',
+              color: activeTab === 'capturas' ? '#38bdf8' : '#94a3b8',
               padding: '0.6rem 1rem',
               fontSize: '0.85rem',
               fontWeight: 700,
@@ -314,7 +314,7 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
           >
             <Camera size={16} />
             <span>1. Capturas y Evidencias de Cámaras</span>
-            <span style={{ background: 'rgba(0,240,255,0.2)', color: '#00f0ff', padding: '1px 6px', borderRadius: '10px', fontSize: '0.72rem' }}>
+            <span style={{ background: 'rgba(2, 132, 199,0.2)', color: '#38bdf8', padding: '1px 6px', borderRadius: '10px', fontSize: '0.72rem' }}>
               {alerts.length}
             </span>
           </button>
@@ -387,7 +387,7 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
         <div style={{ padding: '1.5rem', maxHeight: '72vh', overflowY: 'auto' }}>
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '4rem', flexDirection: 'column', gap: '1rem', color: '#94a3b8' }}>
-              <div style={{ border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid #00f0ff', borderRadius: '50%', width: '36px', height: '36px', animation: 'spin 1s linear infinite' }} />
+              <div style={{ border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid #38bdf8', borderRadius: '50%', width: '36px', height: '36px', animation: 'spin 1s linear infinite' }} />
               <span>Consolidando capturas de videovigilancia y peritaje biométrico...</span>
             </div>
           ) : error ? (
@@ -406,7 +406,7 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
                         Todas las apariciones detectadas por cámaras IP autónomas y fotos enviadas por la ciudadanía
                       </p>
                     </div>
-                    <span style={{ fontSize: '0.8rem', color: '#00f0ff', background: 'rgba(0, 240, 255, 0.1)', padding: '0.3rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#38bdf8', background: 'rgba(2, 132, 199, 0.1)', padding: '0.3rem 0.7rem', borderRadius: '8px', border: '1px solid rgba(2, 132, 199, 0.3)' }}>
                       Total Evidencias: <strong>{alerts.length}</strong>
                     </span>
                   </div>
@@ -484,8 +484,8 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
                                 top: '8px',
                                 right: '8px',
                                 background: 'rgba(0, 0, 0, 0.85)',
-                                border: '1px solid #00f0ff',
-                                color: '#00f0ff',
+                                border: '1px solid #38bdf8',
+                                color: '#38bdf8',
                                 fontSize: '0.72rem',
                                 fontWeight: 900,
                                 padding: '0.2rem 0.5rem',
@@ -643,7 +643,7 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
                     {/* Foto Principal y Biometría */}
                     <div style={{
                       background: 'rgba(15, 23, 42, 0.75)',
-                      border: '1px solid rgba(0, 240, 255, 0.25)',
+                      border: '1px solid rgba(2, 132, 199, 0.25)',
                       borderRadius: '12px',
                       padding: '1.25rem',
                       display: 'flex',
@@ -659,8 +659,8 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
                           height: '220px',
                           borderRadius: '10px',
                           objectFit: 'cover',
-                          border: '2px solid #00f0ff',
-                          boxShadow: '0 0 20px rgba(0, 240, 255, 0.35)'
+                          border: '2px solid #38bdf8',
+                          boxShadow: '0 0 20px rgba(2, 132, 199, 0.35)'
                         }}
                         onError={(e) => {
                           e.target.src = 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80';
@@ -668,7 +668,7 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
                       />
                       <div style={{ textAlign: 'center' }}>
                         <h4 style={{ margin: 0, color: '#f8fafc', fontSize: '1.15rem' }}>{caso.nombre_desaparecido}</h4>
-                        <span style={{ color: '#00f0ff', fontSize: '0.78rem', fontFamily: 'monospace' }}>VECTOR FACIAL 512-D ACTIVO</span>
+                        <span style={{ color: '#38bdf8', fontSize: '0.78rem', fontFamily: 'monospace' }}>VECTOR FACIAL 512-D ACTIVO</span>
                       </div>
                     </div>
 
@@ -820,7 +820,7 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
             <img
               src={previewPhoto}
               alt="Evidencia forense en alta resolución"
-              style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: '12px', border: '2px solid #00f0ff', boxShadow: '0 0 40px rgba(0, 240, 255, 0.5)' }}
+              style={{ maxHeight: '80vh', maxWidth: '100%', borderRadius: '12px', border: '2px solid #38bdf8', boxShadow: '0 0 40px rgba(2, 132, 199, 0.5)' }}
             />
             <div style={{ marginTop: '0.75rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
               Presiona en cualquier lugar para cerrar la vista ampliada

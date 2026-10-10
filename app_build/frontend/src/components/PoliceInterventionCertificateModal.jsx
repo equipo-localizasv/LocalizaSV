@@ -18,9 +18,9 @@ const PoliceInterventionCertificateModal = ({ isOpen, onClose, alerta, caso }) =
   };
 
   return (
-    <div className="modal-overlay animate-fade-in" style={{ zIndex: 12500 }}>
+    <div className="modal-overlay animate-fade-in" style={{ zIndex: 12500, overflowY: "auto", padding: "1.5rem 1rem" }}>
       <div
-        className="hud-panel corner-hud"
+        className="glass-panel"
         style={{
           maxWidth: '780px',
           width: '95%',
@@ -28,8 +28,8 @@ const PoliceInterventionCertificateModal = ({ isOpen, onClose, alerta, caso }) =
           display: 'flex',
           flexDirection: 'column',
           background: 'rgba(6, 13, 29, 0.98)',
-          border: '1px solid rgba(0, 240, 255, 0.45)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.95), 0 0 35px rgba(0, 240, 255, 0.25)',
+          border: '1px solid rgba(2, 132, 199, 0.35)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9), 0 0 25px rgba(2, 132, 199, 0.15)',
           borderRadius: '16px',
           overflow: 'hidden'
         }}
@@ -37,20 +37,20 @@ const PoliceInterventionCertificateModal = ({ isOpen, onClose, alerta, caso }) =
         {/* Header Bar */}
         <div style={{
           padding: '1.25rem 1.75rem',
-          borderBottom: '1px solid rgba(0, 240, 255, 0.2)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'rgba(0, 240, 255, 0.05)'
+          background: 'linear-gradient(90deg, rgba(15, 23, 42, 0.98) 0%, rgba(2, 132, 199, 0.18) 100%)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span style={{ fontSize: '1.6rem' }}>🛡️</span>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#00f0ff' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#f8fafc' }}>
                   Ficha Oficial de Intervención Policial (SHA-256)
                 </h3>
-                <span className="cyber-badge-cyan">CERTIFICADO DIGITAL</span>
+                <span style={{ background: "rgba(2, 132, 199, 0.2)", border: "1px solid #0284c7", color: "#38bdf8", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontSize: "0.7rem", fontWeight: 700 }}>CERTIFICADO DIGITAL</span>
               </div>
               <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
                 Orden de Despacho y Actuación Policial con Firma Criptográfica

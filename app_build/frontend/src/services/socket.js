@@ -19,7 +19,14 @@ class SocketService {
         const isHttps = window.location.protocol === 'https:';
         const proto = isHttps ? 'wss:' : 'ws:';
         const hostname = window.location.hostname;
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        if (
+          hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('172.') ||
+          hostname.startsWith('10.') ||
+          hostname.endsWith('.local')
+        ) {
           return `${proto}//${hostname}:3001`;
         }
         if (hostname.endsWith('.dpdns.org')) {

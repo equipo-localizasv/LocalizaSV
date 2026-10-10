@@ -1,5 +1,52 @@
 const db = require('../config/database');
 const insightFaceService = require('../services/insightFaceService');
+const jwt = require('jsonwebtoken');
+
+// Helper to inspect user token even on optional/public routes
+const getOptionalUser = (req) => {
+  if (req.user) return req.user;
+  const authHeader = req.headers['authorization'];
+  if (authHeader) {
+    const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader;
+    if (token) {
+      try {
+        return jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey_localizasv_2026');
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+  return null;
+};
+
+// Helper: Enmascarar datos del reportante y teléfono para evitar estafas/extorsiones
+const sanitizeCaseForViewer = (c, viewer) => {
+  const isPrivileged = viewer && (
+    viewer.rol === 'administrador' ||
+    viewer.rol === 'moderador' ||
+    viewer.rol === 'autoridad' ||
+    viewer.id === c.usuario_id
+  );
+
+  if (isPrivileged) {
+    return {
+      ...c,
+      privatizado: false
+    };
+  }
+
+  // Vista ciudadana / pública general: Privatización estricta solicitada
+  return {
+    ...c,
+    creador_nombre: 'Reportante Resguardado (Anonimato C4I)',
+    creador_email: 'seguridad.denuncias@pnc.gob.sv',
+    creador_telefono: 'Canal Oficial 911 / 122 PNC',
+    creador_selfie_url: null,
+    telefono_contacto: 'Canal Oficial de Emergencias 911 / 122 PNC (Protegido)',
+    direccion_vivienda: c.direccion_vivienda ? 'Protegida (Solo visible para patrulla PNC en custodia)' : null,
+    privatizado: true
+  };
+};
 
 const createCase = async (req, res) => {
   const {
@@ -15,7 +62,10 @@ const createCase = async (req, res) => {
     estatura_cm,
     complexion,
     condicion_medica,
-    lugar_frecuente
+    lugar_frecuente,
+    parentesco_reportante,
+    direccion_vivienda,
+    telefono_privado
   } = req.body;
 
   if (!req.file) {
@@ -61,8 +111,9 @@ const createCase = async (req, res) => {
       `INSERT INTO casos (
         usuario_id, nombre_desaparecido, edad, genero, fecha_desaparicion,
         ubicacion_desaparicion, descripcion, telefono_contacto, foto_url, biometria_insightface,
-        vestimenta, senas_particulares, estatura_cm, complexion, condicion_medica, lugar_frecuente
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        vestimenta, senas_particulares, estatura_cm, complexion, condicion_medica, lugar_frecuente,
+        parentesco_reportante, direccion_vivienda, telefono_privado
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *`,
       [
         req.user.id,
@@ -80,7 +131,10 @@ const createCase = async (req, res) => {
         estatura_cm ? parseInt(estatura_cm) : null,
         complexion || null,
         condicion_medica || null,
-        lugar_frecuente || null
+        lugar_frecuente || null,
+        parentesco_reportante || 'Familiar',
+        direccion_vivienda || null,
+        telefono_privado !== undefined ? Boolean(telefono_privado) : true
       ]
     );
 
@@ -97,6 +151,7 @@ const createCase = async (req, res) => {
 
 const getCases = async (req, res) => {
   const { search, estado } = req.query;
+  const viewer = getOptionalUser(req);
 
   let queryText = `
     SELECT c.*, u.nombre as creador_nombre 
@@ -127,7 +182,8 @@ const getCases = async (req, res) => {
 
   try {
     const result = await db.query(queryText, queryParams);
-    return res.status(200).json(result.rows);
+    const sanitized = (result.rows || []).map(c => sanitizeCaseForViewer(c, viewer));
+    return res.status(200).json(sanitized);
   } catch (error) {
     console.error('Error al listar casos:', error);
     return res.status(500).json({ error: 'Ocurrió un error al obtener la lista de casos.' });
@@ -136,6 +192,7 @@ const getCases = async (req, res) => {
 
 const getCaseById = async (req, res) => {
   const { id } = req.params;
+  const viewer = getOptionalUser(req);
 
   try {
     const result = await db.query(
@@ -154,10 +211,103 @@ const getCaseById = async (req, res) => {
       return res.status(404).json({ error: 'El caso solicitado no existe.' });
     }
 
-    return res.status(200).json(result.rows[0]);
+    const sanitized = sanitizeCaseForViewer(result.rows[0], viewer);
+    return res.status(200).json(sanitized);
   } catch (error) {
     console.error('Error al obtener detalle del caso:', error);
     return res.status(500).json({ error: 'Ocurrió un error al cargar los detalles del caso.' });
+  }
+};
+
+const updateCase = async (req, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  try {
+    const caseResult = await db.query('SELECT * FROM casos WHERE id = $1', [id]);
+    if (caseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'El caso no existe.' });
+    }
+    const current = caseResult.rows[0];
+
+    const canEdit = user.rol === 'administrador' || user.rol === 'moderador' || user.id === current.usuario_id;
+    if (!canEdit) {
+      return res.status(403).json({ error: 'No está autorizado para editar este caso. Acción exclusiva de Administrador o Moderador.' });
+    }
+
+    const {
+      nombre_desaparecido,
+      edad,
+      genero,
+      fecha_desaparicion,
+      ubicacion_desaparicion,
+      descripcion,
+      direccion_vivienda,
+      parentesco_reportante,
+      telefono_contacto,
+      vestimenta,
+      senas_particulares,
+      estado
+    } = req.body;
+
+    const updateResult = await db.query(
+      `UPDATE casos SET 
+        nombre_desaparecido = $1, edad = $2, genero = $3, fecha_desaparicion = $4,
+        ubicacion_desaparicion = $5, descripcion = $6, direccion_vivienda = $7,
+        parentesco_reportante = $8, telefono_contacto = $9, vestimenta = $10,
+        senas_particulares = $11, estado = $12
+       WHERE id = $13 RETURNING *`,
+      [
+        nombre_desaparecido || current.nombre_desaparecido,
+        edad ? parseInt(edad) : current.edad,
+        genero || current.genero,
+        fecha_desaparicion || current.fecha_desaparicion,
+        ubicacion_desaparicion || current.ubicacion_desaparicion,
+        descripcion || current.descripcion,
+        direccion_vivienda !== undefined ? direccion_vivienda : current.direccion_vivienda,
+        parentesco_reportante || current.parentesco_reportante,
+        telefono_contacto || current.telefono_contacto,
+        vestimenta !== undefined ? vestimenta : current.vestimenta,
+        senas_particulares !== undefined ? senas_particulares : current.senas_particulares,
+        estado || current.estado,
+        id
+      ]
+    );
+
+    return res.status(200).json({
+      message: 'Expediente actualizado exitosamente.',
+      caso: updateResult.rows[0]
+    });
+  } catch (err) {
+    console.error('Error al actualizar caso:', err);
+    return res.status(500).json({ error: 'Error interno al actualizar el expediente.' });
+  }
+};
+
+const deleteCase = async (req, res) => {
+  const { id } = req.params;
+  const user = req.user;
+
+  try {
+    const caseResult = await db.query('SELECT * FROM casos WHERE id = $1', [id]);
+    if (caseResult.rows.length === 0) {
+      return res.status(404).json({ error: 'El caso no existe.' });
+    }
+    const current = caseResult.rows[0];
+
+    const canDelete = user.rol === 'administrador' || user.rol === 'moderador' || user.id === current.usuario_id;
+    if (!canDelete) {
+      return res.status(403).json({ error: 'No está autorizado para eliminar este caso. Acción exclusiva de Administrador o Moderador.' });
+    }
+
+    await db.query('DELETE FROM casos WHERE id = $1', [id]);
+
+    return res.status(200).json({
+      message: 'Expediente eliminado correctamente del sistema.'
+    });
+  } catch (err) {
+    console.error('Error al eliminar caso:', err);
+    return res.status(500).json({ error: 'Error interno al eliminar el expediente.' });
   }
 };
 
@@ -170,7 +320,6 @@ const updateCaseStatus = async (req, res) => {
   }
 
   try {
-    // Check ownership of the case
     const caseResult = await db.query('SELECT usuario_id FROM casos WHERE id = $1', [id]);
 
     if (caseResult.rows.length === 0) {
@@ -178,12 +327,12 @@ const updateCaseStatus = async (req, res) => {
     }
 
     const caso = caseResult.rows[0];
+    const canChange = req.user.rol === 'administrador' || req.user.rol === 'moderador' || caso.usuario_id === req.user.id;
 
-    if (caso.usuario_id !== req.user.id) {
-      return res.status(403).json({ error: 'No está autorizado para modificar este caso. Solo el usuario creador puede hacerlo.' });
+    if (!canChange) {
+      return res.status(403).json({ error: 'No está autorizado para modificar este caso.' });
     }
 
-    // Update status
     const updateResult = await db.query(
       'UPDATE casos SET estado = $1 WHERE id = $2 RETURNING *',
       [estado, id]
@@ -199,11 +348,6 @@ const updateCaseStatus = async (req, res) => {
   }
 };
 
-/**
- * Tarea 5: Endpoint aceptar búsqueda
- * PUT /api/casos/:id/aceptar
- * Registra que un usuario voluntario/rescatista aceptó la búsqueda activa
- */
 const acceptSearch = async (req, res) => {
   const { id } = req.params;
   const usuarioId = req.user.id;
@@ -216,16 +360,8 @@ const acceptSearch = async (req, res) => {
 
     const caso = caseResult.rows[0];
 
-    // Verificar si el caso ya fue resuelto
     if (caso.estado === 'Encontrado') {
       return res.status(400).json({ error: 'Este caso ya ha sido resuelto y marcado como Encontrado.' });
-    }
-
-    // Verificar que el caso no tenga ya un usuario asignado activo
-    if (caso.usuario_asignado_id && caso.usuario_asignado_id !== usuarioId && caso.estado === 'En Proceso de Rescate') {
-      return res.status(400).json({
-        error: 'Este caso ya tiene un voluntario asignado en proceso de rescate activo.'
-      });
     }
 
     const fechaAceptacion = new Date().toISOString();
@@ -239,14 +375,13 @@ const acceptSearch = async (req, res) => {
 
     const updatedCase = updateResult.rows[0];
 
-    // Emitir evento en tiempo real vía WebSocket
     const { broadcast } = require('../wsServer');
     if (typeof broadcast === 'function') {
       broadcast('caso_actualizado', updatedCase);
     }
 
     return res.status(200).json({
-      message: '¡Has aceptado la búsqueda de este caso! El estado ha cambiado a "En Proceso de Rescate".',
+      message: '¡Misión de rescate aceptada con éxito! La patrulla ha sido desplegada.',
       caso: updatedCase
     });
   } catch (error) {
@@ -255,11 +390,6 @@ const acceptSearch = async (req, res) => {
   }
 };
 
-/**
- * Tarea 6: Endpoint estado de rescate
- * GET /api/casos/:id/estado
- * Devuelve el estado operativo de rescate para desplegar el banner dinámico
- */
 const getRescueStatus = async (req, res) => {
   const { id } = req.params;
 
@@ -286,13 +416,10 @@ const getRescueStatus = async (req, res) => {
   }
 };
 
-/**
- * Tarea: Expediente Forense Integral (Dossier con Galería de Evidencias, Heatmap GPS y Cronología)
- * GET /api/cases/:id/dossier
- */
 const getCaseDossier = async (req, res) => {
   const { id } = req.params;
   const caseId = parseInt(id);
+  const viewer = getOptionalUser(req);
 
   try {
     const caseResult = await db.query(
@@ -311,9 +438,9 @@ const getCaseDossier = async (req, res) => {
       return res.status(404).json({ error: 'El expediente solicitado no existe.' });
     }
 
-    const caso = caseResult.rows[0];
+    const rawCaso = caseResult.rows[0];
+    const caso = sanitizeCaseForViewer(rawCaso, viewer);
 
-    // Consultar todas las alertas, detecciones de cámaras y avistamientos comunitarios
     const alertsResult = await db.query(
       `SELECT a.*, LOWER(COALESCE(ea.nombre, a.estado, 'pendiente')) as estado
        FROM alertas a
@@ -325,7 +452,6 @@ const getCaseDossier = async (req, res) => {
 
     const alerts = alertsResult.rows || [];
 
-    // Extraer puntos GPS para el mapa de calor específico de este caso
     const heatmapPoints = alerts
       .map((a) => {
         const lat = parseFloat(a.ubicacion_lat || a.lat);
@@ -336,12 +462,11 @@ const getCaseDossier = async (req, res) => {
       })
       .filter(Boolean);
 
-    // Timeline cronológico forense
     const timeline = [];
     timeline.push({
       tipo: 'registro_caso',
       titulo: 'Expediente Inicial Registrado',
-      descripcion: `Reportado por ${caso.creador_nombre}. Último lugar de contacto: ${caso.ubicacion_desaparicion}.`,
+      descripcion: `Último lugar de contacto: ${caso.ubicacion_desaparicion}.`,
       fecha: caso.created_at || caso.fecha_desaparicion,
       icono: '📋'
     });
@@ -389,6 +514,8 @@ module.exports = {
   createCase,
   getCases,
   getCaseById,
+  updateCase,
+  deleteCase,
   updateCaseStatus,
   acceptSearch,
   getRescueStatus,

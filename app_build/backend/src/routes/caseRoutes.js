@@ -1,8 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const caseController = require('../controllers/caseController');
+const biometriaController = require('../controllers/biometriaController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/uploadMiddleware');
+
+// Búsqueda inversa biométrica 1:N
+router.post('/reverse-search', upload.single('foto'), biometriaController.searchBiometricDatabase);
 
 // Get all cases (public feed)
 router.get('/', caseController.getCases);
@@ -16,8 +20,14 @@ router.get('/:id/dossier', caseController.getCaseDossier);
 // Create a missing person report (protected, with photo upload)
 router.post('/', authMiddleware, upload.single('foto'), caseController.createCase);
 
-// Update case status (protected, restricted to owner)
+// Update case status (protected)
 router.put('/:id/estado', authMiddleware, express.json(), caseController.updateCaseStatus);
+
+// Edit case details (protected, admin/moderator/owner)
+router.put('/:id', authMiddleware, express.json(), caseController.updateCase);
+
+// Delete case (protected, admin/moderator/owner)
+router.delete('/:id', authMiddleware, caseController.deleteCase);
 
 // Tarea 5: Aceptar búsqueda de caso (protected)
 router.put('/:id/aceptar', authMiddleware, caseController.acceptSearch);

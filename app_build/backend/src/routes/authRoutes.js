@@ -4,7 +4,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const { register, login, getMe, updateProfile } = require('../controllers/authController');
+const { register, login, getMe, updateProfile, forgotPassword, resetPassword } = require('../controllers/authController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
 const uploadsDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -38,7 +39,9 @@ const upload = multer({
 
 router.post('/register', upload.single('selfie'), register);
 router.post('/login', login);
-router.get('/me', getMe);
-router.put('/profile', upload.single('selfie'), updateProfile);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.get('/me', authMiddleware, getMe);
+router.put('/profile', authMiddleware, upload.single('selfie'), updateProfile);
 
 module.exports = router;

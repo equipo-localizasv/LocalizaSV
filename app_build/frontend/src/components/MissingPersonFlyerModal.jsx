@@ -43,9 +43,9 @@ const MissingPersonFlyerModal = ({ isOpen, onClose, caso }) => {
   };
 
   return (
-    <div className="modal-overlay animate-fade-in" style={{ zIndex: 12000 }}>
+    <div className="modal-overlay animate-fade-in" style={{ zIndex: 12000, overflowY: "auto", padding: "1.5rem 1rem" }}>
       <div 
-        className="hud-panel corner-hud" 
+        className="glass-panel" 
         style={{
           width: '100%',
           maxWidth: formatMode === 'story' ? '500px' : formatMode === 'square' ? '640px' : '820px',
@@ -76,7 +76,17 @@ const MissingPersonFlyerModal = ({ isOpen, onClose, caso }) => {
                 <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#fff' }}>
                   Generador Multiformato de Carteles Forenses
                 </h3>
-                <span className="cyber-badge-cyan">DINÁMICO CON QR</span>
+                <span style={{
+    background: 'rgba(239, 68, 68, 0.15)',
+    border: '1px solid #ef4444',
+    color: '#f87171',
+    padding: '0.15rem 0.55rem',
+    borderRadius: '9999px',
+    fontSize: '0.7rem',
+    fontWeight: 700
+  }}>
+    OFICIAL CON QR
+  </span>
               </div>
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
                 Exporta afiches optimizados para redes sociales (Historias 9:16, Feed 1:1 e Impresión A4)

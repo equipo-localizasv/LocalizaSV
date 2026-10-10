@@ -198,6 +198,112 @@ const HeatAndClusterLayers = ({ alerts, showHeatmap, showClusters, onSelectAlert
   return null;
 };
 
+// Componente interno que renderiza el Personal Activo PNC y Mapa de Calor de Cobertura Policial
+const PatrolsAndCoverageLayer = ({ patrols = [], showPatrols = true, showPatrolHeatmap = false, onSelectPatrol = null }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !patrols || patrols.length === 0) return;
+
+    const L_GLOBAL = window.L || L;
+    let patrolHeatLayer = null;
+    let patrolMarkerGroup = L_GLOBAL.layerGroup();
+
+    // 1. Capa de Calor de Presencia Policial (Heatmap CUA en tonos cian-azul policial)
+    if (showPatrolHeatmap && typeof L_GLOBAL.heatLayer === 'function') {
+      const patrolPoints = patrols
+        .map((p) => {
+          const lat = parseFloat(p.lat);
+          const lng = parseFloat(p.lng);
+          if (isNaN(lat) || isNaN(lng)) return null;
+          return [lat, lng, 0.95];
+        })
+        .filter(Boolean);
+
+      if (patrolPoints.length > 0) {
+        patrolHeatLayer = L_GLOBAL.heatLayer(patrolPoints, {
+          radius: 38,
+          blur: 24,
+          maxZoom: 16,
+          gradient: { 0.2: '#00f0ff', 0.5: '#0284c7', 0.8: '#3b82f6', 1.0: '#60a5fa' }
+        });
+        patrolHeatLayer.addTo(map);
+      }
+    }
+
+    // 2. Marcadores Tácticos de Patrullas en Tiempo Real con Pulso Radar
+    if (showPatrols) {
+      patrols.forEach((p) => {
+        const lat = parseFloat(p.lat);
+        const lng = parseFloat(p.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const isOnline = p.en_servicio !== false;
+        const iconHtml = `
+          <div style="position:relative; width:44px; height:44px; display:flex; align-items:center; justify-content:center;">
+            <div style="position:absolute; width:100%; height:100%; border-radius:50%; background:rgba(2, 132, 199, 0.45); animation:ping 1.8s infinite;"></div>
+            <div style="background:linear-gradient(135deg, #0284c7, #1e3a8a); color:#fff; border:2px solid #38bdf8; border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; font-size:17px; box-shadow:0 0 16px rgba(56, 189, 248, 0.7); z-index:3;">
+              🚔
+            </div>
+            <div style="position:absolute; bottom:1px; right:1px; width:10px; height:10px; background:${isOnline ? '#10b981' : '#64748b'}; border:2px solid #fff; border-radius:50%; z-index:4;"></div>
+          </div>
+        `;
+
+        const patrolMarkerIcon = L_GLOBAL.divIcon({
+          className: 'pnc-live-patrol-marker',
+          html: iconHtml,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        });
+
+        const marker = L_GLOBAL.marker([lat, lng], { icon: patrolMarkerIcon });
+        marker.bindPopup(`
+          <div style="font-family:system-ui, -apple-system, sans-serif; padding:8px; min-width:220px; color:#0f172a;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="background:#0284c7; color:#fff; font-size:0.68rem; font-weight:800; padding:2px 6px; border-radius:4px;">
+                🚔 ${p.patrulla_pnc || 'UNIDAD MÓVIL PNC'}
+              </span>
+              <span style="font-size:0.68rem; color:${isOnline ? '#10b981' : '#64748b'}; font-weight:700;">
+                ● ${isOnline ? 'EN SERVICIO' : 'INACTIVO'}
+              </span>
+            </div>
+            <h4 style="margin:4px 0 2px 0; font-size:0.95rem; font-weight:800; color:#0f172a;">
+              ${p.nombre}
+            </h4>
+            <div style="font-size:0.75rem; color:#64748b; margin-bottom:6px;">
+              ONI: <strong>${p.placa_pnc || 'OFICIAL'}</strong> • ${p.delegacion_pnc || 'Delegación PNC'}
+            </div>
+            <div style="background:#f1f5f9; padding:5px 8px; border-radius:6px; font-size:0.75rem; margin-bottom:4px;">
+              <div>📍 <strong>GPS en vivo:</strong> ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+              ${p.telefono ? `<div>📞 <strong>Línea Oficial:</strong> ${p.telefono}</div>` : ''}
+              <div>⏱️ <strong>Última señal:</strong> ${p.ultima_conexion ? new Date(p.ultima_conexion).toLocaleTimeString() : 'Hace instantes'}</div>
+            </div>
+          </div>
+        `);
+
+        if (typeof onSelectPatrol === 'function') {
+          marker.on('click', () => onSelectPatrol(p));
+        }
+
+        patrolMarkerGroup.addLayer(marker);
+      });
+
+      map.addLayer(patrolMarkerGroup);
+    }
+
+    return () => {
+      if (patrolHeatLayer && map) {
+        map.removeLayer(patrolHeatLayer);
+      }
+      if (patrolMarkerGroup && map) {
+        map.removeLayer(patrolMarkerGroup);
+      }
+    };
+  }, [map, patrols, showPatrols, showPatrolHeatmap, onSelectPatrol]);
+
+  return null;
+};
+
 // Componente interno que renderiza la Ruta de Llegada Rápida de Emergencia PNC
 const EmergencyRouteLayer = ({ route }) => {
   const map = useMap();
@@ -308,13 +414,21 @@ const EmergencyRouteLayer = ({ route }) => {
 /**
  * Componente MapaAlertas
  * Incluye capa de calor con Leaflet.Heat, clustering con Leaflet.markercluster,
+ * monitoreo de personal policial activo con pulso radar y mapa de calor de cobertura,
  * y ruteo GPS de llegada rápida para intercepción de emergencias PNC.
  */
 const MapaAlertas = ({
   alerts: propAlerts,
+  patrols: propPatrols = [],
   emergencyRoute = null,
   onClearRoute = null,
-  onSelectAlert = null
+  onSelectAlert = null,
+  onSelectPatrol = null,
+  showPatrolsDefault = true,
+  showPatrolHeatmapDefault = true,
+  customHeight = '460px',
+  title = 'Mapa Táctico de Intervención Policial PNC',
+  subtitle = 'Geolocalización con cálculo de ruta de llegada más rápida y monitoreo de patrullas'
 }) => {
   const [alerts, setAlerts] = useState(propAlerts || []);
   const [loading, setLoading] = useState(!propAlerts);
@@ -324,6 +438,8 @@ const MapaAlertas = ({
   // Controles de visibilidad de capas
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [showClusters, setShowClusters] = useState(true);
+  const [showPatrols, setShowPatrols] = useState(showPatrolsDefault);
+  const [showPatrolHeatmap, setShowPatrolHeatmap] = useState(showPatrolHeatmapDefault);
 
   // Coordenadas centradas en El Salvador y límites
   const defaultCenter = [13.7, -89.2];
@@ -382,10 +498,10 @@ const MapaAlertas = ({
           <span style={{ fontSize: '1.3rem' }}>🗺️</span>
           <div>
             <h2 style={{ fontSize: '1.15rem', margin: 0, color: 'var(--text-primary)', fontWeight: 800 }}>
-              Mapa Táctico de Intervención Policial PNC
+              {title}
             </h2>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Geolocalización con cálculo de ruta de llegada más rápida
+              {subtitle}
             </span>
           </div>
         </div>
@@ -399,7 +515,7 @@ const MapaAlertas = ({
               onChange={(e) => setShowHeatmap(e.target.checked)} 
               style={{ accentColor: 'var(--primary)' }}
             />
-            🔥 Capa de Calor
+            🔥 Calor Desaparecidos
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
             <input 
@@ -408,8 +524,32 @@ const MapaAlertas = ({
               onChange={(e) => setShowClusters(e.target.checked)} 
               style={{ accentColor: 'var(--primary)' }}
             />
-            📍 Agrupación de Alertas
+            📍 Marcadores Casos
           </label>
+
+          {propPatrols && propPatrols.length > 0 && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', color: '#38bdf8', fontWeight: 600 }}>
+                <input 
+                  type="checkbox" 
+                  checked={showPatrolHeatmap} 
+                  onChange={(e) => setShowPatrolHeatmap(e.target.checked)} 
+                  style={{ accentColor: '#0284c7' }}
+                />
+                🌊 Cobertura Táctica PNC
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', color: '#00f0ff', fontWeight: 700 }}>
+                <input 
+                  type="checkbox" 
+                  checked={showPatrols} 
+                  onChange={(e) => setShowPatrols(e.target.checked)} 
+                  style={{ accentColor: '#00f0ff' }}
+                />
+                🚔 Personal Activo ({propPatrols.length})
+              </label>
+            </>
+          )}
+
           <span style={{ color: 'var(--text-muted)' }}>| {alerts.length} alertas</span>
         </div>
       </div>
@@ -419,7 +559,7 @@ const MapaAlertas = ({
         style={{ 
           position: 'relative', 
           width: '100%', 
-          height: '460px', 
+          height: customHeight, 
           borderRadius: 'var(--radius-md)', 
           overflow: 'hidden',
           border: emergencyRoute ? '2px solid #00f0ff' : '1px solid var(--border-color)',
@@ -583,6 +723,15 @@ const MapaAlertas = ({
               showHeatmap={showHeatmap} 
               showClusters={showClusters}
               onSelectAlert={onSelectAlert}
+            />
+          )}
+
+          {pluginsReady && propPatrols && propPatrols.length > 0 && (
+            <PatrolsAndCoverageLayer
+              patrols={propPatrols}
+              showPatrols={showPatrols}
+              showPatrolHeatmap={showPatrolHeatmap}
+              onSelectPatrol={onSelectPatrol}
             />
           )}
 

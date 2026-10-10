@@ -265,12 +265,12 @@ def analyze_face(image_path, annotate_output_path=None, match_name=None, match_s
             result["message"] = "No human face detected in frame"
             return result
 
-        # 2. Filtrar candidatos válidos (mínimo 28x28 y score >= 0.50)
+        # 2. Filtrar candidatos válidos (mínimo 60x60 px y confianza >= 0.60 para descartar ruido y falsos positivos)
         valid_candidates = []
         for f in faces:
             fw, fh = f[2], f[3]
             conf = float(f[14])
-            if fw >= 28 and fh >= 28 and conf >= 0.50:
+            if fw >= 60 and fh >= 60 and conf >= 0.60:
                 valid_candidates.append(f)
 
         if not valid_candidates:

@@ -33,6 +33,8 @@ const CreateCase = () => {
     ubicacion_desaparicion: '',
     descripcion: '',
     telefono_contacto: '',
+    parentesco_reportante: 'Familiar directo (Padre/Madre/Hijo/Cónyuge)',
+    direccion_vivienda: '',
     vestimenta: '',
     senas_particulares: '',
     estatura_cm: '',
@@ -244,6 +246,12 @@ const CreateCase = () => {
       formData.append('telefono_contacto', telefono_contacto);
       formData.append('foto', foto);
 
+      formData.append('parentesco_reportante', form.parentesco_reportante || 'Familiar');
+      if (form.direccion_vivienda) {
+        formData.append('direccion_vivienda', form.direccion_vivienda);
+      }
+      formData.append('telefono_privado', 'true');
+
       if (form.vestimenta) formData.append('vestimenta', form.vestimenta);
       if (form.senas_particulares) formData.append('senas_particulares', form.senas_particulares);
       if (form.estatura_cm) formData.append('estatura_cm', form.estatura_cm);
@@ -259,7 +267,7 @@ const CreateCase = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      window.alert('¡Caso registrado exitosamente con biometría InsightFace activa!');
+      window.alert('¡Expediente de búsqueda registrado exitosamente! La red de monitoreo y las autoridades han sido notificadas.');
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Error al reportar el caso. Por favor intente de nuevo.');
@@ -283,10 +291,10 @@ const CreateCase = () => {
     <div className="auth-wrapper glass-panel animate-fade-in" style={{ maxWidth: '680px', margin: '1.5rem auto' }}>
       <div className="auth-header">
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: '#10b981', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.75rem' }}>
-          <span>⚡ INSIGHTFACE BIOMETRIC ENGINE</span>
+          <span>📋 FORMULARIO NACIONAL DE DENUNCIA Y BÚSQUEDA</span>
         </div>
         <h2>Reportar Persona Desaparecida</h2>
-        <p>Proporcione los datos y fotografía frontal para escanear y generar su firma biométrica ArcFace 512-D</p>
+        <p>Complete los datos de la persona y suba una fotografía frontal nítida para la difusión inmediata en las redes de búsqueda.</p>
       </div>
 
       {error && <div className="auth-error">{error}</div>}
@@ -298,7 +306,7 @@ const CreateCase = () => {
             <span>Fotografía para Reconocimiento Facial</span>
             {biometrics && biometrics.face_detected && (
               <span style={{ fontSize: '0.75rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                ✓ Escaneo ArcFace Activo
+                ✓ Rostro verificado para difusión
               </span>
             )}
           </label>
@@ -759,7 +767,9 @@ const CreateCase = () => {
             />
           </div>
           <div className="form-group">
-            <label className="form-label" htmlFor="telefono_contacto">Teléfono de Contacto Rápido</label>
+            <label className="form-label" htmlFor="telefono_contacto">
+              Teléfono de Contacto del Reportante <span style={{ color: '#ef4444' }}>*</span>
+            </label>
             <input
               id="telefono_contacto"
               name="telefono_contacto"
@@ -770,6 +780,85 @@ const CreateCase = () => {
               onChange={handleInputChange}
               disabled={loading}
             />
+          </div>
+        </div>
+
+        {/* MÓDULO DE PRIVACIDAD Y SEGURIDAD ANTIFRAUDE */}
+        <div style={{
+          background: 'rgba(14, 165, 233, 0.06)',
+          border: '1px solid rgba(14, 165, 233, 0.25)',
+          borderRadius: '12px',
+          padding: '1.25rem',
+          marginBottom: '1.25rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.85rem' }}>
+            <span style={{ fontSize: '1.25rem' }}>🛡️</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#38bdf8' }}>
+                Protección de Identidad y Resguardo Antiextorsión
+              </div>
+              <div style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                Conexión familiar y protocolo de custodia domiciliaria PNC
+              </div>
+            </div>
+          </div>
+
+          <div className="meta-grid">
+            <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+              <label className="form-label" htmlFor="parentesco_reportante">
+                ¿Qué relación o parentesco tiene con la persona desaparecida? <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <select
+                id="parentesco_reportante"
+                name="parentesco_reportante"
+                className="form-control"
+                value={form.parentesco_reportante}
+                onChange={handleInputChange}
+                disabled={loading}
+              >
+                <option value="Familiar directo (Padre/Madre/Hijo/Cónyuge)">Familiar directo (Padre / Madre / Hijo / Cónyuge)</option>
+                <option value="Hermano(a) / Tío(a) / Primo(a)">Hermano(a) / Tío(a) / Primo(a)</option>
+                <option value="Amigo(a) cercano / Vecino">Amigo(a) cercano / Vecino</option>
+                <option value="Tutor / Representante Legal">Tutor / Representante Legal</option>
+                <option value="Conocido / Testigo Informante">Conocido / Testigo Informante</option>
+                <option value="Sin relación familiar directa">Sin relación familiar directa</option>
+              </select>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+              <label className="form-label" htmlFor="direccion_vivienda">
+                ¿Dónde vive la persona desaparecida? (Dirección de vivienda habitual) <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="direccion_vivienda"
+                name="direccion_vivienda"
+                type="text"
+                className="form-control"
+                placeholder="Ej. Col. Escalón, Pasaje 3, Casa #14, San Salvador"
+                value={form.direccion_vivienda}
+                onChange={handleInputChange}
+                disabled={loading}
+                required
+              />
+            </div>
+          </div>
+
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.65)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: '8px',
+            padding: '0.7rem 0.9rem',
+            fontSize: '0.74rem',
+            color: '#cbd5e1',
+            lineHeight: '1.4',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '0.6rem'
+          }}>
+            <span style={{ fontSize: '1rem', color: '#10b981' }}>🔒</span>
+            <div>
+              <strong>Privatización Estricta Activada:</strong> Su teléfono personal y nombre de usuario quedarán <strong>ocultos y protegidos</strong> en el catálogo público para evitar llamadas fraudulentas o estafas. Si la persona es localizada por la PNC y ningún familiar responde de inmediato, la patrulla usará la dirección de vivienda para trasladarla con seguridad a su hogar.
+            </div>
           </div>
         </div>
 

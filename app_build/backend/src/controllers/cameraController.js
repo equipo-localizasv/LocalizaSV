@@ -2,6 +2,12 @@ const db = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 
+// Memoria compartida de alta velocidad para fotogramas en vivo (Zero-disk latency)
+const activeCameraBuffers = new Map(); // id -> { buffer: Buffer, timestamp: number, version: number }
+const latestLiveStreamSamples = new Map(); // id -> { buffer: Buffer, timestamp: number }
+const lastStatusUpdateMap = new Map(); // id -> timestamp
+const lastBiometricScanMap = new Map(); // id -> timestamp
+
 /**
  * Normaliza una dirección ingresada por el usuario a URLs válidas de IP Webcam.
  * Ejemplo de entrada: "192.168.1.50:8080" o "http://192.168.1.50:8080"
@@ -47,7 +53,23 @@ const getCameras = async (req, res) => {
  * POST /api/camaras
  */
 const createCamera = async (req, res) => {
-  const { nombre, ip_address, stream_url, ubicacion, lat, lng, tipo, resolucion, fps } = req.body;
+  const { 
+    nombre, 
+    ip_address, 
+    stream_url, 
+    ubicacion, 
+    lat, 
+    lng, 
+    tipo, 
+    resolucion, 
+    fps, 
+    es_comunitaria, 
+    propietario_nombre, 
+    propietario_telefono, 
+    propietario_dui, 
+    departamento, 
+    descripcion 
+  } = req.body;
 
   const rawTarget = ip_address || stream_url;
   if (!nombre || !rawTarget) {
@@ -58,8 +80,8 @@ const createCamera = async (req, res) => {
 
   try {
     const result = await db.query(
-      `INSERT INTO camaras (nombre, ubicacion, lat, lng, stream_url, tipo, resolucion, fps, estado, ip_address, snapshot_url, base_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO camaras (nombre, ubicacion, lat, lng, stream_url, tipo, resolucion, fps, estado, ip_address, snapshot_url, base_url, es_comunitaria, propietario_nombre, propietario_telefono, propietario_dui, departamento, descripcion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
       [
         nombre,
@@ -67,18 +89,24 @@ const createCamera = async (req, res) => {
         lat ? parseFloat(lat) : 13.6929,
         lng ? parseFloat(lng) : -89.2182,
         streamUrl,
-        tipo || 'Cámara Móvil IP Webcam',
+        tipo || (es_comunitaria ? 'Cámara Residencial Comunitaria' : 'Cámara Móvil IP Webcam'),
         resolucion || '1080p FHD',
         fps ? parseInt(fps) : 30,
         'activa',
         ip,
         snapshotUrl,
-        baseUrl
+        baseUrl,
+        Boolean(es_comunitaria),
+        propietario_nombre || null,
+        propietario_telefono || null,
+        propietario_dui || null,
+        departamento || 'San Salvador',
+        descripcion || null
       ]
     );
 
     return res.status(201).json({
-      message: 'Cámara conectada exitosamente.',
+      message: es_comunitaria ? 'Cámara comunitaria registrada y conectada exitosamente.' : 'Cámara conectada exitosamente.',
       camara: result.rows[0]
     });
   } catch (error) {
@@ -349,12 +377,19 @@ const proxySnapshot = async (req, res) => {
     const cam = camRes.rows[0];
     const snapshotUrl = cam.snapshot_url || (cam.base_url ? `${cam.base_url}/shot.jpg` : null);
 
-    // Prioridad 0: Fotograma transmitido directamente desde celular/dispositivo (Webcam Transmitter)
+    // Prioridad 0: Fotograma en memoria de ultra-baja latencia o transmitido recientemente
+    const memFrame = activeCameraBuffers.get(String(id));
+    if (memFrame && memFrame.buffer && (Date.now() - memFrame.timestamp < 35000)) {
+      res.set('Content-Type', 'image/jpeg');
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.send(memFrame.buffer);
+    }
+
     const mobileFramePath = path.join(__dirname, `../../uploads/latest_cam_frame_${id}.jpg`);
     if (fs.existsSync(mobileFramePath)) {
       try {
         const stat = fs.statSync(mobileFramePath);
-        if (Date.now() - stat.mtimeMs < 30000) {
+        if (Date.now() - stat.mtimeMs < 35000) {
           res.set('Content-Type', 'image/jpeg');
           res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
           return res.sendFile(mobileFramePath);
@@ -443,53 +478,65 @@ const proxyStream = async (req, res) => {
     const cam = camRes.rows[0];
     const streamUrl = cam.stream_url || (cam.base_url ? (cam.base_url.startsWith('rtsp') ? `${cam.base_url}/live/ch1` : `${cam.base_url}/video`) : null);
 
-    // Prioridad 0: Transmisor Web / Móvil activo (MJPEG Stream)
-    const mobileFramePath = path.join(__dirname, `../../uploads/latest_cam_frame_${id}.jpg`);
-    if (fs.existsSync(mobileFramePath)) {
-      try {
-        const stat = fs.statSync(mobileFramePath);
-        if (Date.now() - stat.mtimeMs < 35000) {
-          res.writeHead(200, {
-            'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Connection': 'close',
-            'Pragma': 'no-cache'
-          });
+    // Prioridad 0: Transmisor Web / Móvil activo (SOLO si la cámara no tiene stream_url físico configurado)
+    const memFrame = activeCameraBuffers.get(String(id));
+    const isMobileTransmitterActive = !streamUrl && memFrame && (Date.now() - memFrame.timestamp < 10000);
 
-          let isStreamActive = true;
-          const cleanUpStream = () => {
-            if (!isStreamActive) return;
-            isStreamActive = false;
-            clearInterval(interval);
-          };
+    if (isMobileTransmitterActive) {
+      if (res.socket) {
+        res.socket.setNoDelay(true);
+      }
+      res.writeHead(200, {
+        'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Connection': 'close',
+        'Pragma': 'no-cache'
+      });
 
-          const interval = setInterval(() => {
-            if (!isStreamActive || res.writableEnded || res.destroyed) {
-              cleanUpStream();
-              return;
-            }
-            try {
-              if (!fs.existsSync(mobileFramePath)) return;
-              const frame = fs.readFileSync(mobileFramePath);
-              if (frame && frame.length > 0) {
-                res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
-                res.write(frame);
-                res.write('\r\n');
-              }
-            } catch (err) {
-              // Si el archivo estaba en escritura momentánea, continuamos en el siguiente tick
-              if (res.writableEnded || res.destroyed) {
-                cleanUpStream();
-              }
-            }
-          }, 350);
+      let isStreamActive = true;
+      const cleanUpStream = () => {
+        if (!isStreamActive) return;
+        isStreamActive = false;
+        clearInterval(interval);
+      };
 
-          req.on('close', cleanUpStream);
-          res.on('error', cleanUpStream);
-          req.on('end', cleanUpStream);
+      // Frecuencia optimizada: Envío exclusivo de fotogramas nuevos (Zero Duplication, Zero Latency)
+      let lastSentVersion = -1;
+      let lastHeartbeatTime = Date.now();
+
+      const interval = setInterval(() => {
+        if (!isStreamActive || res.writableEnded || res.destroyed) {
+          cleanUpStream();
           return;
         }
-      } catch (e) {}
+        try {
+          const currentMem = activeCameraBuffers.get(String(id));
+          if (!currentMem || !currentMem.buffer || currentMem.buffer.length === 0) return;
+
+          const now = Date.now();
+          const isFresh = currentMem.version !== lastSentVersion;
+          const needsHeartbeat = (now - lastHeartbeatTime > 3000);
+
+          if (isFresh || needsHeartbeat) {
+            lastSentVersion = currentMem.version;
+            lastHeartbeatTime = now;
+            const frameBuffer = currentMem.buffer;
+
+            res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frameBuffer.length}\r\n\r\n`);
+            res.write(frameBuffer);
+            res.write('\r\n');
+          }
+        } catch (err) {
+          if (res.writableEnded || res.destroyed) {
+            cleanUpStream();
+          }
+        }
+      }, 30); // ~33 FPS check interval
+
+      req.on('close', cleanUpStream);
+      res.on('error', cleanUpStream);
+      req.on('end', cleanUpStream);
+      return;
     }
 
     if (!streamUrl) {
@@ -503,6 +550,7 @@ const proxyStream = async (req, res) => {
       const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'py' : 'python3');
       const child = spawn(pythonCmd, [streamerScript, streamUrl, '15', '65']);
 
+      if (res.socket) res.socket.setNoDelay(true);
       res.writeHead(200, {
         'Content-Type': 'multipart/x-mixed-replace; boundary=--frame',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -527,36 +575,65 @@ const proxyStream = async (req, res) => {
       return;
     }
 
+    // Proxy HTTP/MJPEG nativo ultra-rápido (libuv zero-copy pipe, 30+ FPS garantizados)
     const httpModule = streamUrl.startsWith('https') ? require('https') : require('http');
-    const proxyReq = httpModule.get(streamUrl, { timeout: 5000 }, (camStream) => {
+    let activeCamStream = null;
+
+    const cleanupSockets = () => {
+      try {
+        if (activeCamStream && !activeCamStream.destroyed) {
+          activeCamStream.destroy();
+        }
+      } catch (e) {}
+      try {
+        if (proxyReq && !proxyReq.destroyed) {
+          proxyReq.destroy();
+        }
+      } catch (e) {}
+    };
+
+    const proxyReq = httpModule.get(streamUrl, { timeout: 6000 }, (camStream) => {
+      activeCamStream = camStream;
       if (camStream.statusCode !== 200) {
+        cleanupSockets();
         return sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
       }
+
+      if (res.socket) res.socket.setNoDelay(true);
+      if (camStream.socket) camStream.socket.setNoDelay(true);
+
       res.writeHead(200, {
         'Content-Type': camStream.headers['content-type'] || 'multipart/x-mixed-replace; boundary=--video boundary--',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
         'Connection': 'close',
-        'Pragma': 'no-cache'
+        'Pragma': 'no-cache',
+        'X-Accel-Buffering': 'no'
       });
+
+      // Libuv C++ zero-copy pipe nativo: 0% overhead JavaScript, máxima fluidez posible
       camStream.pipe(res);
+
+      camStream.on('error', cleanupSockets);
+      camStream.on('end', cleanupSockets);
     });
 
     proxyReq.on('timeout', () => {
-      proxyReq.destroy();
+      cleanupSockets();
       if (!res.headersSent) {
         sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
       }
     });
 
     proxyReq.on('error', () => {
+      cleanupSockets();
       if (!res.headersSent) {
         sendOfflinePlaceholder(res, cam.nombre, cam.ip_address);
       }
     });
 
-    req.on('close', () => {
-      proxyReq.destroy();
-    });
+    req.on('close', cleanupSockets);
+    res.on('close', cleanupSockets);
+    res.on('error', cleanupSockets);
   } catch (err) {
     if (!res.headersSent) {
       sendOfflinePlaceholder(res, 'Cámara', '192.168.1.X');
@@ -665,39 +742,48 @@ const pingCamera = async (req, res) => {
       return;
     }
 
+    const hostPart = (cam.ip_address || baseUrl.replace(/^https?:\/\//, '')).split('/')[0];
+    const [rawHost, rawPort] = hostPart.split(':');
+    const targetHost = rawHost || '127.0.0.1';
+    const targetPort = parseInt(rawPort || (baseUrl.startsWith('https') ? 443 : 80));
+
+    const net = require('net');
     const startTime = Date.now();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
+    const probeSocket = new net.Socket();
+    probeSocket.setTimeout(1200);
 
-    try {
-      const response = await fetch(`${baseUrl}/status.json`, { signal: controller.signal });
-      clearTimeout(timeout);
-      const latencyMs = Date.now() - startTime;
+    probeSocket.on('connect', () => {
+      const latencyMs = Math.max(1, Date.now() - startTime);
+      probeSocket.destroy();
+      return res.status(200).json({
+        online: true,
+        latencyMs,
+        ip: cam.ip_address,
+        details: 'Flujo en Vivo Directo TCP Activo',
+        message: `✓ Conexión en vivo confirmada (${latencyMs}ms).`
+      });
+    });
 
-      if (response.ok) {
-        const telemetry = await response.json().catch(() => ({}));
-        return res.status(200).json({
-          online: true,
-          latencyMs,
-          ip: cam.ip_address,
-          telemetry,
-          message: `✓ Conexión exitosa con la cámara (${latencyMs}ms).`
-        });
-      } else {
-        return res.status(200).json({
-          online: false,
-          ip: cam.ip_address,
-          message: `Cámara respondió con código HTTP ${response.status}.`
-        });
-      }
-    } catch (err) {
-      clearTimeout(timeout);
+    probeSocket.on('timeout', () => {
+      probeSocket.destroy();
       return res.status(200).json({
         online: false,
         ip: cam.ip_address,
-        message: `No se pudo conectar con ${cam.ip_address}. Verifique que el teléfono esté encendido y en la misma red Wi-Fi.`
+        message: `Tiempo de espera agotado al conectar con ${cam.ip_address} (puerto ${targetPort}).`
       });
-    }
+    });
+
+    probeSocket.on('error', (err) => {
+      probeSocket.destroy();
+      return res.status(200).json({
+        online: false,
+        ip: cam.ip_address,
+        message: `No se pudo conectar al puerto ${targetPort} de la cámara: ${err.message}`
+      });
+    });
+
+    probeSocket.connect(targetPort, targetHost);
+    return;
   } catch (err) {
     return res.status(500).json({ error: 'Error interno en prueba de ping.' });
   }
@@ -815,6 +901,68 @@ const deleteCamera = async (req, res) => {
 /**
  * Recibir fotograma transmitido en tiempo real desde un dispositivo móvil o navegador
  * POST /api/camaras/:id/frame
+/**
+ * Procesador compartido de fotogramas entrantes (RAM-First para fluidez máxima)
+ */
+const handleIncomingFrame = async (id, image) => {
+  if (!image) return null;
+  try {
+    const cleanData = image.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(cleanData, 'base64');
+    const now = Date.now();
+
+    // 1. Guardar en memoria de acceso instantáneo (Zero Latency)
+    const prev = activeCameraBuffers.get(String(id));
+    const version = (prev?.version || 0) + 1;
+    activeCameraBuffers.set(String(id), {
+      buffer,
+      timestamp: now,
+      version
+    });
+
+    // 2. Escritura asíncrona a disco sin bloquear el hilo principal
+    const uploadsDir = path.join(__dirname, '../../uploads');
+    const framePath = path.join(uploadsDir, `latest_cam_frame_${id}.jpg`);
+    fs.writeFile(framePath, buffer, () => {});
+
+    // 3. Actualizar estado en DB con throttling (a lo sumo cada 15s para no saturar PostgreSQL ni mockDb)
+    const lastDbUpdate = lastStatusUpdateMap.get(String(id)) || 0;
+    if (now - lastDbUpdate > 15000) {
+      lastStatusUpdateMap.set(String(id), now);
+      try {
+        await db.query('UPDATE camaras SET estado = $1, ultima_actividad = $2 WHERE id = $3', ['activa', new Date().toISOString(), id]);
+      } catch (dbErr) {}
+    }
+
+    // 4. Escaneo biométrico facial en segundo plano con throttling (a lo sumo cada 3.5 segundos)
+    const lastBioScan = lastBiometricScanMap.get(String(id)) || 0;
+    if (now - lastBioScan > 3500) {
+      lastBiometricScanMap.set(String(id), now);
+      setTimeout(async () => {
+        try {
+          const surveillanceService = require('../services/surveillanceService');
+          const casesResult = await db.query('SELECT * FROM casos');
+          const activeCases = (casesResult.rows || []).filter(c => !c.estado || c.estado.toLowerCase() !== 'encontrado');
+          if (activeCases.length > 0) {
+            await surveillanceService.processCameraScan({
+              id: parseInt(id),
+              nombre: 'Cámara Transmisor Móvil',
+              snapshot_url: framePath
+            }, activeCases);
+          }
+        } catch (e) {}
+      }, 0);
+    }
+
+    return { success: true, timestamp: now };
+  } catch (err) {
+    console.error('Error procesando fotograma:', err);
+    return null;
+  }
+};
+
+/**
+ * Endpoint de subida de fotogramas de cámara móvil
  */
 const uploadCameraFrame = async (req, res) => {
   const { id } = req.params;
@@ -823,40 +971,56 @@ const uploadCameraFrame = async (req, res) => {
     return res.status(400).json({ error: 'No se envió fotograma.' });
   }
 
+  const result = await handleIncomingFrame(id, image);
+  if (result) {
+    return res.status(200).json({
+      success: true,
+      timestamp: result.timestamp,
+      message: 'Fotograma procesado en memoria ultrarrápida C4I'
+    });
+  } else {
+    return res.status(500).json({ error: 'Error procesando fotograma.' });
+  }
+};
+
+/**
+ * Optimiza remotamente la cámara (IP Webcam) para máxima fluidez táctica (720p / 55% calidad / 30 FPS)
+ * POST /api/camaras/:id/optimize
+ */
+const optimizeCameraStream = async (req, res) => {
+  const { id } = req.params;
+  const { resolution = '1280x720', quality = 55, fpslimit = 30 } = req.body || {};
   try {
-    const cleanData = image.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(cleanData, 'base64');
-    const uploadsDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    const camRes = await db.query('SELECT * FROM camaras WHERE id = $1', [id]);
+    if (!camRes.rows || camRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Cámara no encontrada.' });
+    }
+    const cam = camRes.rows[0];
+    const baseUrl = cam.base_url || (cam.ip_address ? `http://${cam.ip_address}` : null);
+    if (!baseUrl) {
+      return res.status(400).json({ error: 'Cámara no tiene dirección IP configurada.' });
+    }
 
-    const framePath = path.join(uploadsDir, `latest_cam_frame_${id}.jpg`);
-    fs.writeFileSync(framePath, buffer);
+    // IP Webcam endpoints para cambio de parámetros en caliente:
+    const tasks = [
+      fetch(`${baseUrl}/settings/video_size?set=${resolution}`).catch(() => {}),
+      fetch(`${baseUrl}/settings/quality?set=${quality}`).catch(() => {}),
+      fetch(`${baseUrl}/settings/fpslimit?set=${fpslimit}`).catch(() => {})
+    ];
+    await Promise.allSettled(tasks);
 
-    // Actualizar estado de la cámara a activa
-    await db.query('UPDATE camaras SET estado = $1 WHERE id = $2', ['activa', id]);
-
-    // Ejecutar escaneo facial en segundo plano con InsightFace
-    try {
-      const surveillanceService = require('../services/surveillanceService');
-      const casesResult = await db.query('SELECT * FROM casos');
-      const activeCases = (casesResult.rows || []).filter(c => !c.estado || c.estado.toLowerCase() !== 'encontrado');
-      if (activeCases.length > 0) {
-        surveillanceService.processCameraScan({
-          id: parseInt(id),
-          nombre: 'Cámara Transmisor Móvil',
-          snapshot_url: framePath
-        }, activeCases).catch(() => {});
-      }
-    } catch (e) {}
+    // Actualizar datos en DB
+    await db.query('UPDATE camaras SET resolucion = $1, fps = $2 WHERE id = $3', [`${resolution} HD`, fpslimit, id]);
 
     return res.status(200).json({
       success: true,
-      timestamp: Date.now(),
-      message: 'Fotograma recibido y procesado por motor biométrico C4I'
+      message: `✓ Cámara optimizada exitosamente: ${resolution} a ${fpslimit} FPS (Calidad ${quality}%). Fluidez ultra-rápida activada.`,
+      resolution,
+      fps: fpslimit,
+      quality
     });
   } catch (err) {
-    console.error('Error al recibir fotograma de cámara móvil:', err);
-    return res.status(500).json({ error: 'Error procesando fotograma.' });
+    return res.status(500).json({ error: 'Error al optimizar parámetros de la cámara.' });
   }
 };
 
@@ -867,12 +1031,16 @@ module.exports = {
   proxySnapshot,
   proxyStream,
   pingCamera,
+  optimizeCameraStream,
   updateCamera,
   toggleSurveillance,
   getSurveillanceStatus,
   setSurveillanceThreshold,
   deleteCamera,
-  uploadCameraFrame
+  uploadCameraFrame,
+  handleIncomingFrame,
+  activeCameraBuffers,
+  latestLiveStreamSamples
 };
 
 

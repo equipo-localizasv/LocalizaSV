@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { PhoneCall, ShieldCheck, Clock, AlertCircle } from 'lucide-react';
 import socketService from '../services/socket';
 
 const LiveTelemetryTicker = () => {
-  const [clock, setClock] = useState(new Date().toLocaleTimeString('es-SV', { hour12: false }));
-  const [socketStatus, setSocketStatus] = useState('conectado');
-  const [pulseActive, setPulseActive] = useState(true);
+  const [clock, setClock] = useState(
+    new Date().toLocaleTimeString('es-SV', { hour12: false })
+  );
+  const [activeAlertCount, setActiveAlertCount] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -12,8 +14,7 @@ const LiveTelemetryTicker = () => {
     }, 1000);
 
     const unsubAlert = socketService.on('nueva_alerta', () => {
-      setPulseActive(false);
-      setTimeout(() => setPulseActive(true), 300);
+      setActiveAlertCount((prev) => prev + 1);
     });
 
     return () => {
@@ -23,81 +24,75 @@ const LiveTelemetryTicker = () => {
   }, []);
 
   return (
-    <div style={{
-      background: 'rgba(2, 6, 23, 0.94)',
-      borderBottom: '1px solid rgba(0, 240, 255, 0.22)',
-      backdropFilter: 'blur(10px)',
-      padding: '0.35rem 1rem',
+    <aside aria-label="Líneas de Asistencia y Estado Oficial" style={{
+      background: 'rgba(15, 23, 42, 0.95)',
+      borderBottom: '1px solid rgba(255, 255, 255, 0.07)',
+      padding: '0.4rem 1.25rem',
+      fontSize: '0.75rem',
+      color: '#94a3b8',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       gap: '1rem',
-      fontSize: '0.74rem',
-      fontFamily: 'monospace',
-      color: '#94a3b8',
-      overflowX: 'auto',
-      whiteSpace: 'nowrap',
-      zIndex: 900
+      flexWrap: 'wrap'
     }}>
-      {/* Indicador de Red Principal */}
+      {/* Estado del Sistema */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <div style={{
-          display: 'flex',
+          display: 'inline-flex',
           alignItems: 'center',
-          gap: '0.4rem',
-          background: 'rgba(0, 255, 157, 0.1)',
-          border: '1px solid rgba(0, 255, 157, 0.3)',
-          padding: '0.15rem 0.55rem',
-          borderRadius: '12px',
-          color: '#00ff9d',
-          fontWeight: 700
+          gap: '0.35rem',
+          color: '#10b981',
+          fontWeight: 600
         }}>
           <span style={{
-            width: '7px',
-            height: '7px',
+            width: '6px',
+            height: '6px',
             borderRadius: '50%',
-            background: '#00ff9d',
-            boxShadow: '0 0 8px #00ff9d',
-            display: 'inline-block',
-            animation: pulseActive ? 'cyberPulseGreen 1.8s infinite' : 'none'
+            background: '#10b981',
+            display: 'inline-block'
           }} />
-          <span>RED NACIONAL ONLINE</span>
+          <span>Red Nacional en Vigilancia Activa</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#38bdf8' }}>
-          <span>📡</span>
-          <span>MOTOR IA: <strong>ACTIVO (30 FPS)</strong></span>
-        </div>
+        <span style={{ color: '#334155' }}>|</span>
 
-        <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#c084fc' }}>
-          <span>🧬</span>
-          <span>ARCFACE 512-D: <strong>~15ms</strong></span>
-        </div>
-
-        <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#cbd5e1' }}>
-          <span>🛡️</span>
-          <span>CADENA DE CUSTODIA: <strong>SHA-256 VERIFICADA</strong></span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#cbd5e1' }}>
+          <ShieldCheck size={14} color="#38bdf8" />
+          <span>Protocolo Oficial de Cadena de Custodia</span>
         </div>
       </div>
 
-      {/* Reloj y Sincronización SV */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <div style={{
-          background: 'rgba(14, 165, 233, 0.12)',
-          border: '1px solid rgba(14, 165, 233, 0.35)',
-          padding: '0.15rem 0.6rem',
-          borderRadius: '4px',
-          color: '#00f0ff',
-          fontWeight: 700
-        }}>
-          🇸🇻 SV MILITARY TIME: {clock} UTC-6
+      {/* Líneas de Emergencia Nacionales */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <PhoneCall size={13} color="#f43f5e" />
+          <span style={{ color: '#f8fafc', fontWeight: 600 }}>Emergencias PNC:</span>
+          <a href="tel:911" style={{ color: '#f43f5e', fontWeight: 700, textDecoration: 'none' }}>
+            911
+          </a>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ color: '#cbd5e1', fontWeight: 500 }}>Fiscalía (FGR):</span>
+          <a href="tel:116" style={{ color: '#38bdf8', fontWeight: 700, textDecoration: 'none' }}>
+            116
+          </a>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ color: '#cbd5e1', fontWeight: 500 }}>Denuncia Anónima:</span>
+          <span style={{ color: '#fbbf24', fontWeight: 700 }}>123</span>
+        </div>
+
+        <span style={{ color: '#334155' }}>|</span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#94a3b8' }}>
+          <Clock size={13} />
+          <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{clock} SV</span>
         </div>
       </div>
-    </div>
+    </aside>
   );
 };
 

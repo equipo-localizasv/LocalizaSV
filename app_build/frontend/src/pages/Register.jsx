@@ -11,7 +11,11 @@ const Register = () => {
     dui: '',
     email: '',
     telefono: '',
-    password: ''
+    password: '',
+    id_moderador: '',
+    numero_placa: '',
+    delegacion_pnc: '',
+    patrulla_pnc: ''
   });
   
   const [selfie, setSelfie] = useState(null);
@@ -65,11 +69,31 @@ const Register = () => {
     e.preventDefault();
     setError('');
 
-    const { nombre, dui, email, telefono, password } = form;
+    const { nombre, dui, email, telefono, password, id_moderador, numero_placa, delegacion_pnc, patrulla_pnc } = form;
 
     if (!nombre || !dui || !email || !telefono || !password || !selfie) {
       setError('Por favor, complete todos los campos y suba su selfie.');
       return;
+    }
+
+    if (rol === 'moderador' && (!id_moderador || !id_moderador.trim())) {
+      setError('Para el rol de Moderador es obligatorio ingresar su ID de Identificación Operativa.');
+      return;
+    }
+
+    if (rol === 'autoridad') {
+      if (!numero_placa || !numero_placa.trim()) {
+        setError('Para el personal PNC es obligatorio ingresar el Número de Placa Policial / ONI.');
+        return;
+      }
+      if (!delegacion_pnc || !delegacion_pnc.trim()) {
+        setError('Indique la Delegación Policial a la que pertenece el oficial.');
+        return;
+      }
+      if (!patrulla_pnc || !patrulla_pnc.trim()) {
+        setError('Indique el número de patrulla o unidad móvil asignada.');
+        return;
+      }
     }
 
     // DUI Regex: 8 digits, hyphen, 1 digit
@@ -97,6 +121,15 @@ const Register = () => {
       formData.append('password', password);
       formData.append('rol', rol);
       formData.append('selfie', selfie);
+      if (rol === 'moderador' && id_moderador) {
+        formData.append('id_moderador', id_moderador.trim());
+      }
+      if (rol === 'autoridad') {
+        formData.append('numero_placa', numero_placa.trim());
+        formData.append('placa_pnc', numero_placa.trim());
+        formData.append('delegacion_pnc', delegacion_pnc.trim());
+        formData.append('patrulla_pnc', patrulla_pnc.trim());
+      }
 
       await api.post('/auth/register', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -345,6 +378,128 @@ const Register = () => {
             </div>
           </div>
         </div>
+
+        {/* Campos de Verificación de Seguridad según Rol */}
+        {rol === 'moderador' && (
+          <div style={{
+            background: 'rgba(139, 92, 246, 0.08)',
+            border: '1px solid rgba(139, 92, 246, 0.35)',
+            borderRadius: '10px',
+            padding: '1.15rem',
+            marginBottom: '1.25rem',
+            animation: 'fadeIn 0.25s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>🛡️</span>
+              <div>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#c4b5fd', display: 'block' }}>
+                  Validación Institucional • Moderador de Alertas
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                  Requerido para operadores y analistas del centro de control
+                </span>
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="id_moderador" style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                ID de Operador / Código Institucional <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="id_moderador"
+                name="id_moderador"
+                type="text"
+                className="form-control"
+                placeholder="Ej. MOD-SV-8942 o OP-C4-102"
+                value={form.id_moderador}
+                onChange={handleInputChange}
+                required={rol === 'moderador'}
+                disabled={loading}
+              />
+              <small style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                Ingrese el código emitido por la administración de LocalizaSV o Centro de Operaciones.
+              </small>
+            </div>
+          </div>
+        )}
+
+        {rol === 'autoridad' && (
+          <div style={{
+            background: 'rgba(14, 165, 233, 0.08)',
+            border: '1px solid rgba(14, 165, 233, 0.35)',
+            borderRadius: '10px',
+            padding: '1.15rem',
+            marginBottom: '1.25rem',
+            animation: 'fadeIn 0.25s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>🚔</span>
+              <div>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#7dd3fc', display: 'block' }}>
+                  Validación Institucional • Policía Nacional Civil (PNC / FGR)
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                  Acreditación para unidades de investigación y patrullas en territorio
+                </span>
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <label className="form-label" htmlFor="numero_placa" style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                Número de Placa Policial / ONI <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="numero_placa"
+                name="numero_placa"
+                type="text"
+                className="form-control"
+                placeholder="Ej. PNC-48192 o ONI-28491"
+                value={form.numero_placa}
+                onChange={handleInputChange}
+                required={rol === 'autoridad'}
+                disabled={loading}
+              />
+              <small style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                Número de Orden Numérico Institucional (ONI) verificado con base de datos de seguridad pública.
+              </small>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: '0.85rem' }}>
+              <label className="form-label" htmlFor="delegacion_pnc" style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                Delegación / Subdelegación Policial <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="delegacion_pnc"
+                name="delegacion_pnc"
+                type="text"
+                className="form-control"
+                placeholder="Ej. Delegación San Salvador Centro / Delegación Santa Ana"
+                value={form.delegacion_pnc}
+                onChange={handleInputChange}
+                required={rol === 'autoridad'}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="patrulla_pnc" style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                Número de Patrulla / Unidad Móvil Asignada <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="patrulla_pnc"
+                name="patrulla_pnc"
+                type="text"
+                className="form-control"
+                placeholder="Ej. Patrulla 04-22 o Unidad Táctica Jaguares #12"
+                value={form.patrulla_pnc}
+                onChange={handleInputChange}
+                required={rol === 'autoridad'}
+                disabled={loading}
+              />
+              <small style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                Identificación de la unidad vehicular o cuadrante de patrullaje para el despacho C4I.
+              </small>
+            </div>
+          </div>
+        )}
 
         <button type="submit" className="btn btn-primary w-100 mt-4" disabled={loading}>
           {loading ? 'Procesando registro...' : 'Registrar Cuenta'}

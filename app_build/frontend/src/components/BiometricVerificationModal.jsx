@@ -146,8 +146,8 @@ const BiometricVerificationModal = ({ alerta, cases, onClose, onConfirm, onDisca
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
-            <div style={{ border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid #00f0ff', borderRadius: '50%', width: '45px', height: '45px', animation: 'spin 0.9s linear infinite', margin: '0 auto 1.25rem' }} />
-            <h4 style={{ margin: '0 0 0.4rem 0', color: '#00f0ff' }}>Extrayendo descriptores faciales con InsightFace...</h4>
+            <div style={{ border: '3px solid rgba(255,255,255,0.1)', borderTop: '3px solid #38bdf8', borderRadius: '50%', width: '45px', height: '45px', animation: 'spin 0.9s linear infinite', margin: '0 auto 1.25rem' }} />
+            <h4 style={{ margin: '0 0 0.4rem 0', color: '#38bdf8' }}>Extrayendo descriptores faciales con InsightFace...</h4>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
               Calculando landmarks RetinaFace y similitud de cosenos sobre vectores de 512 dimensiones
             </p>

@@ -7,9 +7,26 @@ import ReportSightingModal from '../components/ReportSightingModal';
 import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
 import MapaAlertas from '../components/MapaAlertas';
 import ReversePhotoSearchModal from '../components/ReversePhotoSearchModal';
-import AgeProgressionModal from '../components/AgeProgressionModal';
+import RegisterCommunityCameraModal from '../components/RegisterCommunityCameraModal';
 import HeroSection from '../components/HeroSection';
-import soundEffects from '../services/soundEffects';
+import { 
+  Search,
+  Camera, 
+  MapPin, 
+  Filter, 
+  Share2, 
+  Printer, 
+  Eye, 
+  AlertCircle, 
+  CheckCircle, 
+  Clock, 
+  Users, 
+  Sparkles, 
+  Calendar, 
+  ArrowUpDown,
+  PhoneCall,
+  UserCheck
+} from 'lucide-react';
 
 const DEPARTAMENTOS_SV = [
   'San Salvador',
@@ -32,20 +49,26 @@ const Dashboard = () => {
   const { user } = useContext(AuthContext);
   const [cases, setCases] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  
+  // Search & Filter state
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState(''); // Empty = All, 'Desaparecido', 'Encontrado', 'En Proceso de Rescate'
+  const [statusFilter, setStatusFilter] = useState(''); // '' | 'Desaparecido' | 'En Proceso de Rescate' | 'Encontrado'
   const [deptFilter, setDeptFilter] = useState('');
+  const [ageGroupFilter, setAgeGroupFilter] = useState('all'); // 'all' | 'menores' | 'adultos' | 'mayores'
+  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'name'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'map'
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [acceptingId, setAcceptingId] = useState(null);
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // Modals state
   const [sightingModalOpen, setSightingModalOpen] = useState(false);
   const [sightingInitialCaseId, setSightingInitialCaseId] = useState(null);
   const [selectedFlyerCase, setSelectedFlyerCase] = useState(null);
   const [reverseSearchOpen, setReverseSearchOpen] = useState(false);
-  const [ageProgressionCase, setAgeProgressionCase] = useState(null);
-
+  const [communityCamOpen, setCommunityCamOpen] = useState(false);
 
   const fetchCases = async () => {
     setLoading(true);
@@ -70,18 +93,15 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    // Debounce search input slightly or trigger on search/filter update
     const timer = setTimeout(() => {
       fetchCases();
-    }, 300);
-
+    }, 250);
     return () => clearTimeout(timer);
   }, [search, statusFilter]);
 
-  // Escuchar actualizaciones de casos en tiempo real por WebSocket
+  // WebSocket real-time updates
   useEffect(() => {
     const unsubscribe = socketService.on('caso_actualizado', (updatedCase) => {
-      console.log('🔄 [Dashboard] Caso actualizado recibido por WebSocket:', updatedCase);
       setCases((prevCases) =>
         prevCases.map((c) => (c.id === updatedCase.id ? { ...c, ...updatedCase } : c))
       );
@@ -102,30 +122,13 @@ const Dashboard = () => {
       setCases((prevCases) =>
         prevCases.map((c) => (c.id === caseId ? { ...c, ...updatedCase } : c))
       );
-      setActionSuccess(`¡Te has unido a la búsqueda del Caso #${caseId}!`);
-      setTimeout(() => setActionSuccess(''), 6000);
+      setActionSuccess(`¡Te has sumado activamente a la búsqueda del Caso #${caseId}!`);
+      setTimeout(() => setActionSuccess(''), 5000);
     } catch (err) {
       console.error('Error al aceptar búsqueda:', err);
       alert(err.response?.data?.error || 'No se pudo aceptar la búsqueda.');
     } finally {
       setAcceptingId(null);
-    }
-  };
-
-
-  const [fcmToken, setFcmToken] = useState('');
-  const [regStatus, setRegStatus] = useState('');
-
-  const handleSimulateFcmRegister = async () => {
-    setRegStatus('Registrando...');
-    try {
-      const mockToken = `mock-fcm-token-${user ? user.id : 'anon'}-${Math.floor(Math.random() * 100000)}`;
-      await api.post('/notifications/register-token', { token: mockToken });
-      setFcmToken(mockToken);
-      setRegStatus('¡Token registrado en la BD!');
-    } catch (err) {
-      console.error(err);
-      setRegStatus('Error al registrar token de simulación.');
     }
   };
 
@@ -135,24 +138,53 @@ const Dashboard = () => {
   };
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr) return 'No especificada';
     const date = new Date(dateStr);
     return new Intl.DateTimeFormat('es-SV', {
       day: 'numeric',
-      month: 'long',
+      month: 'short',
       year: 'numeric',
       timeZone: 'UTC'
     }).format(date);
   };
 
+  // Filtered & Sorted Cases
   const filteredCases = useMemo(() => {
-    return cases.filter((c) => {
-      if (!deptFilter) return true;
-      const loc = (c.ubicacion_desaparicion || '').toLowerCase();
-      return loc.includes(deptFilter.toLowerCase());
+    let result = cases.filter((c) => {
+      // Department filter
+      if (deptFilter) {
+        const loc = (c.ubicacion_desaparicion || '').toLowerCase();
+        if (!loc.includes(deptFilter.toLowerCase())) return false;
+      }
+      // Age group filter
+      if (ageGroupFilter !== 'all') {
+        const edad = parseInt(c.edad, 10);
+        if (isNaN(edad)) return true;
+        if (ageGroupFilter === 'menores' && edad >= 18) return false;
+        if (ageGroupFilter === 'adultos' && (edad < 18 || edad >= 60)) return false;
+        if (ageGroupFilter === 'mayores' && edad < 60) return false;
+      }
+      return true;
     });
-  }, [cases, deptFilter]);
 
+    // Sorting
+    result.sort((a, b) => {
+      if (sortBy === 'recent') {
+        return new Date(b.created_at || b.fecha_desaparicion) - new Date(a.created_at || a.fecha_desaparicion);
+      }
+      if (sortBy === 'oldest') {
+        return new Date(a.created_at || a.fecha_desaparicion) - new Date(b.created_at || b.fecha_desaparicion);
+      }
+      if (sortBy === 'name') {
+        return (a.nombre_desaparecido || '').localeCompare(b.nombre_desaparecido || '');
+      }
+      return 0;
+    });
+
+    return result;
+  }, [cases, deptFilter, ageGroupFilter, sortBy]);
+
+  // Statistics
   const stats = useMemo(() => {
     const total = cases.length;
     const activos = cases.filter(c => c.estado === 'Desaparecido').length;
@@ -162,285 +194,160 @@ const Dashboard = () => {
   }, [cases]);
 
   return (
-    <div className="animate-fade-in">
-      {/* Hero Section Cinematográfico Táctico C4I */}
-      <HeroSection onOpenReverseSearch={() => setReverseSearchOpen(true)} user={user} />
+    <div style={{ maxWidth: '1280px', margin: '0 auto', paddingBottom: '3rem' }}>
+      {/* Hero Institucional */}
+      <HeroSection 
+        onOpenReverseSearch={() => setReverseSearchOpen(true)}
+        onOpenSighting={() => {
+          setSightingInitialCaseId(null);
+          setSightingModalOpen(true);
+        }}
+        user={user} 
+      />
 
-      {/* Top Cyber Amber Alert Pulsing Banner */}
-      {cases.some(c => c.estado === 'Desaparecido') && (
-        <div style={{
-          background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.18), rgba(6, 13, 29, 0.95), rgba(239, 68, 68, 0.18))',
-          borderTop: '2px solid #ef4444',
-          borderBottom: '2px solid #ef4444',
-          padding: '0.65rem 1.25rem',
-          marginBottom: '1.75rem',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 0 25px rgba(239, 68, 68, 0.3)',
-          flexWrap: 'wrap',
-          gap: '0.75rem'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <span className="cyber-beacon" style={{ background: '#ef4444', boxShadow: '0 0 12px #ef4444' }} />
-            <span style={{
-              background: 'rgba(239, 68, 68, 0.25)',
-              border: '1px solid #ef4444',
-              color: '#fca5a5',
-              fontWeight: 800,
-              fontSize: '0.75rem',
-              padding: '0.2rem 0.6rem',
-              borderRadius: '4px',
-              letterSpacing: '1px'
-            }}>
-              CÓDIGO ÁMBAR ACTIVO
-            </span>
-            <span style={{ color: '#f8fafc', fontSize: '0.85rem' }}>
-              Red Nacional de Vigilancia en alerta máxima • Prioridad en terminales y puestos de control
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button
-              onClick={() => {
-                soundEffects.playScanSound();
-                setReverseSearchOpen(true);
-              }}
-              style={{
-                background: 'rgba(0, 240, 255, 0.15)',
-                border: '1px solid #00f0ff',
-                color: '#00f0ff',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                padding: '0.35rem 0.75rem',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              <span>🧬</span>
-              <span>Cotejo Biométrico Rápido</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="dashboard-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.25rem' }}>
-            <h1 style={{ fontSize: '2.25rem', margin: 0 }}>Casos de Desaparición</h1>
-            <span className="cyber-badge-cyan">SISTEMA CIBERNÉTICO HUD</span>
-          </div>
-          <p style={{ color: 'var(--text-secondary)' }}>Plataforma nacional de geolocalización, biometría 512D e inteligencia colaborativa en El Salvador</p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => {
-              soundEffects.playScanSound();
-              setReverseSearchOpen(true);
-            }}
-            className="btn"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              border: '1px solid #00f0ff',
-              color: '#00f0ff',
-              background: 'rgba(0, 240, 255, 0.12)',
-              fontWeight: 700,
-              padding: '0.6rem 1rem',
-              borderRadius: '8px',
-              boxShadow: '0 0 15px rgba(0, 240, 255, 0.2)'
-            }}
-          >
-            <span>🧬</span>
-            <span>Búsqueda Inversa por Foto (IA)</span>
-          </button>
-          <button
-            onClick={() => {
-              soundEffects.playClickSound();
-              setSightingInitialCaseId(null);
-              setSightingModalOpen(true);
-            }}
-            className="btn btn-secondary"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              border: '1px solid #0ea5e9',
-              color: '#38bdf8',
-              background: 'rgba(14, 165, 233, 0.12)',
-              fontWeight: 600,
-              padding: '0.6rem 1rem'
-            }}
-          >
-            <span>📸</span>
-            <span>Reportar Avistamiento</span>
-          </button>
-          {user ? (
-            <Link
-              to="/reportar"
-              onClick={() => soundEffects.playClickSound()}
-              className="btn btn-primary"
-              style={{ padding: '0.6rem 1.2rem', fontWeight: 600 }}
-            >
-              ➕ Reportar Desaparición
-            </Link>
-          ) : (
-            <Link
-              to="/login"
-              onClick={() => soundEffects.playClickSound()}
-              className="btn btn-secondary"
-            >
-              Iniciar sesión para reportar
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* KPI Stats Bar */}
+      {/* Barra Unificada de Métricas Institucionales (Diseño Limpio y Sobrio) */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '1rem',
-        marginBottom: '2rem'
+        gap: '0.85rem',
+        marginBottom: '1.5rem'
       }}>
-        <div className="glass-panel card-interactive-lift" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.5rem',
-            color: '#ef4444'
-          }}>
-            🚨
-          </div>
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.65)',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          borderRadius: '10px',
+          padding: '0.85rem 1.15rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
           <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#f87171', lineHeight: 1.1 }}>
-              {stats.activos}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
               En Búsqueda Activa
             </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#f87171', lineHeight: 1.2, marginTop: '0.15rem' }}>
+              {stats.activos}
+            </div>
           </div>
-        </div>
-
-        <div className="glass-panel card-interactive-lift" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(245, 158, 11, 0.15)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'rgba(239, 68, 68, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.5rem',
-            color: '#f59e0b'
+            color: '#f87171'
           }}>
-            🤝
+            <AlertCircle size={18} />
           </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.65)',
+          border: '1px solid rgba(245, 158, 11, 0.2)',
+          borderRadius: '10px',
+          padding: '0.85rem 1.15rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
           <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#f59e0b', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+              Operativos en Curso
+            </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#fbbf24', lineHeight: 1.2, marginTop: '0.15rem' }}>
               {stats.enRescate}
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              En Rescate Activo
-            </div>
           </div>
-        </div>
-
-        <div className="glass-panel card-interactive-lift" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'rgba(245, 158, 11, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.5rem',
-            color: '#10b981'
+            color: '#fbbf24'
           }}>
-            ✓
+            <Clock size={18} />
           </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.65)',
+          border: '1px solid rgba(16, 185, 129, 0.2)',
+          borderRadius: '10px',
+          padding: '0.85rem 1.15rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
           <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#10b981', lineHeight: 1.1 }}>
-              {stats.localizados}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
               Personas Localizadas
             </div>
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#34d399', lineHeight: 1.2, marginTop: '0.15rem' }}>
+              {stats.localizados}
+            </div>
           </div>
-        </div>
-
-        <div className="glass-panel card-interactive-lift" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'rgba(14, 165, 233, 0.15)',
-            border: '1px solid rgba(14, 165, 233, 0.3)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'rgba(16, 185, 129, 0.12)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.5rem',
-            color: '#0ea5e9'
+            color: '#34d399'
           }}>
-            📡
+            <CheckCircle size={18} />
           </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.65)',
+          border: '1px solid rgba(56, 189, 248, 0.2)',
+          borderRadius: '10px',
+          padding: '0.85rem 1.15rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
           <div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#38bdf8', lineHeight: 1.1 }}>
-              {alerts.length}
+            <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+              Total Expedientes
             </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Alertas Verificadas
+            <div style={{ fontSize: '1.45rem', fontWeight: 800, color: '#38bdf8', lineHeight: 1.2, marginTop: '0.15rem' }}>
+              {stats.total}
             </div>
+          </div>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '8px',
+            background: 'rgba(56, 189, 248, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#38bdf8'
+          }}>
+            <Users size={18} />
           </div>
         </div>
       </div>
 
-      {user && (
-        <div className="glass-panel animate-fade-in" style={{ padding: '1rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px dashed var(--primary)' }}>
-          <div>
-            <h4 style={{ margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              📲 Simulador de Notificaciones Push (FCM)
-            </h4>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Registra este navegador como un dispositivo para recibir alertas simuladas del sistema.
-            </p>
-            {fcmToken && (
-              <code style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.25rem' }}>
-                Token: {fcmToken}
-              </code>
-            )}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-            <button onClick={handleSimulateFcmRegister} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-              🔔 Registrar Dispositivo Mock
-            </button>
-            {regStatus && <span style={{ fontSize: '0.75rem', color: regStatus.includes('¡') ? 'var(--success)' : 'var(--text-secondary)' }}>{regStatus}</span>}
-          </div>
-        </div>
-      )}
+
 
       {actionSuccess && (
-        <div className="glass-panel animate-fade-in" style={{
-          background: 'rgba(16, 185, 129, 0.15)',
-          border: '1px solid #10b981',
-          color: '#10b981',
-          padding: '1rem',
-          borderRadius: '8px',
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          color: '#34d399',
+          padding: '0.85rem 1.25rem',
+          borderRadius: '10px',
           marginBottom: '1.5rem',
+          fontSize: '0.9rem',
           fontWeight: 600,
           textAlign: 'center'
         }}>
@@ -448,507 +355,555 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Tarea 5: Banner 'En proceso de rescate' cuando hay casos activos en búsqueda */}
-      {cases.some((c) => c.estado === 'En Proceso de Rescate') && (
-        <div
-          className="glass-panel animate-fade-in"
-          style={{
-            background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.15), rgba(245, 158, 11, 0.15))',
-            border: '1px solid rgba(245, 158, 11, 0.5)',
-            borderRadius: '12px',
-            padding: '1.25rem 1.5rem',
-            marginBottom: '2rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            boxShadow: '0 4px 20px rgba(245, 158, 11, 0.15)'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <span style={{ fontSize: '2.2rem', animation: 'spin 3s linear infinite' }}>🚨</span>
-            <div>
-              <h3 style={{ margin: 0, color: '#f59e0b', fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                OPERATIVO EN CURSO: En Proceso de Rescate
-              </h3>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#e2e8f0' }}>
-                Búsqueda colaborativa activa para:{' '}
-                {cases
-                  .filter((c) => c.estado === 'En Proceso de Rescate')
-                  .map((c) => (
-                    <strong key={c.id} style={{ color: '#fbbf24' }}>
-                      {c.nombre_desaparecido} {c.rescatista_nombre ? `(Voluntario: ${c.rescatista_nombre})` : ''}{' '}
-                    </strong>
-                  ))}
-              </p>
-            </div>
-          </div>
-          <span
-            style={{
-              padding: '0.4rem 0.85rem',
-              borderRadius: '20px',
-              background: 'rgba(245, 158, 11, 0.25)',
-              border: '1px solid #f59e0b',
-              color: '#fef3c7',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              textTransform: 'uppercase'
-            }}
-          >
-            Vigilancia Activa 24/7
-          </span>
-        </div>
-      )}
-
-      {/* Selector de Filtros y Modo de Vista */}
-      <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ flex: '1 1 260px', position: 'relative' }}>
-            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>🔍</span>
+      {/* Barra de Filtros y Búsqueda Avanzada */}
+      <div style={{
+        background: 'rgba(15, 23, 42, 0.85)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '14px',
+        padding: '1.25rem',
+        marginBottom: '2rem'
+      }}>
+        {/* Fila 1: Búsqueda y Selectores */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '0.85rem',
+          alignItems: 'center',
+          marginBottom: '1rem'
+        }}>
+          {/* Búsqueda por texto */}
+          <div style={{ position: 'relative' }}>
+            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
             <input
               type="text"
               className="form-control"
-              placeholder="Buscar por nombre o lugar..."
+              placeholder="Buscar por nombre, seña o lugar..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ paddingLeft: '2.5rem', width: '100%' }}
+              style={{
+                paddingLeft: '2.4rem',
+                fontSize: '0.88rem',
+                height: '40px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(2, 6, 23, 0.6)',
+                color: '#ffffff'
+              }}
             />
           </div>
 
-          <div style={{ flex: '0 1 200px' }}>
+          {/* Filtro por Departamento */}
+          <div>
             <select
               className="form-control"
               value={deptFilter}
-              onChange={(e) => {
-                soundEffects.playClickSound();
-                setDeptFilter(e.target.value);
+              onChange={(e) => setDeptFilter(e.target.value)}
+              style={{
+                fontSize: '0.88rem',
+                height: '40px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(2, 6, 23, 0.6)',
+                color: '#ffffff'
               }}
             >
-              <option value="">Todos los Departamentos</option>
+              <option value="">Todos los Departamentos (14)</option>
               {DEPARTAMENTOS_SV.map((d) => (
                 <option key={d} value={d}>{d}</option>
               ))}
             </select>
           </div>
 
-          {/* Filtros de Estado */}
+          {/* NUEVA FUNCIÓN: Filtro por Rango de Edad */}
+          <div>
+            <select
+              className="form-control"
+              value={ageGroupFilter}
+              onChange={(e) => setAgeGroupFilter(e.target.value)}
+              style={{
+                fontSize: '0.88rem',
+                height: '40px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(2, 6, 23, 0.6)',
+                color: '#ffffff'
+              }}
+            >
+              <option value="all">Todas las edades</option>
+              <option value="menores">Menores de 18 años</option>
+              <option value="adultos">Adultos (18 a 59 años)</option>
+              <option value="mayores">Adultos Mayores (60+ años)</option>
+            </select>
+          </div>
+
+          {/* NUEVA FUNCIÓN: Ordenar por */}
+          <div>
+            <select
+              className="form-control"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              style={{
+                fontSize: '0.88rem',
+                height: '40px',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'rgba(2, 6, 23, 0.6)',
+                color: '#ffffff'
+              }}
+            >
+              <option value="recent">Más recientes primero</option>
+              <option value="oldest">Mayor tiempo en búsqueda</option>
+              <option value="name">Alfabético por nombre</option>
+            </select>
+          </div>
+
+          {/* Cotejo con Foto Biométrico */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setReverseSearchOpen(true)}
+              style={{
+                width: '100%',
+                height: '40px',
+                borderRadius: '8px',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                background: 'rgba(2, 132, 199, 0.15)',
+                color: '#38bdf8',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.45rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Camera size={15} />
+              <span>Cotejar Foto (IA)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Fila 2: Filtros de Estado y Conmutador de Vista */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '1rem',
+          flexWrap: 'wrap',
+          paddingTop: '0.5rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.06)'
+        }}>
+          {/* Pestañas de Estado */}
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-            <button 
-              onClick={() => {
-                soundEffects.playClickSound();
-                setStatusFilter('');
-              }} 
-              className={`btn ${statusFilter === '' ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+            <button
+              onClick={() => setStatusFilter('')}
+              style={{
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                border: statusFilter === '' ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+                background: statusFilter === '' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                color: statusFilter === '' ? '#38bdf8' : '#94a3b8'
+              }}
             >
-              Todos
+              Todos ({cases.length})
             </button>
-            <button 
-              onClick={() => {
-                soundEffects.playClickSound();
-                setStatusFilter('Desaparecido');
-              }} 
-              className={`btn ${statusFilter === 'Desaparecido' ? 'btn-danger' : 'btn-secondary'}`}
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+            <button
+              onClick={() => setStatusFilter('Desaparecido')}
+              style={{
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                border: statusFilter === 'Desaparecido' ? '1px solid #f87171' : '1px solid rgba(255,255,255,0.08)',
+                background: statusFilter === 'Desaparecido' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+                color: statusFilter === 'Desaparecido' ? '#f87171' : '#94a3b8'
+              }}
             >
-              Desaparecidos
+              Desaparecidos ({stats.activos})
             </button>
-            <button 
-              onClick={() => {
-                soundEffects.playClickSound();
-                setStatusFilter('En Proceso de Rescate');
-              }} 
-              className={`btn ${statusFilter === 'En Proceso de Rescate' ? 'btn-warning' : 'btn-secondary'}`}
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: statusFilter === 'En Proceso de Rescate' ? '#000' : 'inherit' }}
+            <button
+              onClick={() => setStatusFilter('En Proceso de Rescate')}
+              style={{
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                border: statusFilter === 'En Proceso de Rescate' ? '1px solid #fbbf24' : '1px solid rgba(255,255,255,0.08)',
+                background: statusFilter === 'En Proceso de Rescate' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+                color: statusFilter === 'En Proceso de Rescate' ? '#fbbf24' : '#94a3b8'
+              }}
             >
-              En Rescate
+              En Operativo ({stats.enRescate})
             </button>
-            <button 
-              onClick={() => {
-                soundEffects.playClickSound();
-                setStatusFilter('Encontrado');
-              }} 
-              className={`btn ${statusFilter === 'Encontrado' ? 'btn-success' : 'btn-secondary'}`}
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+            <button
+              onClick={() => setStatusFilter('Encontrado')}
+              style={{
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                border: statusFilter === 'Encontrado' ? '1px solid #34d399' : '1px solid rgba(255,255,255,0.08)',
+                background: statusFilter === 'Encontrado' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                color: statusFilter === 'Encontrado' ? '#34d399' : '#94a3b8'
+              }}
             >
-              Localizados
+              Localizados ({stats.localizados})
             </button>
           </div>
 
-          {/* View Mode Toggle */}
-          <div style={{ display: 'flex', gap: '0.35rem', background: 'rgba(14, 165, 233, 0.15)', padding: '0.25rem', borderRadius: '8px', border: '1px solid rgba(14, 165, 233, 0.3)' }}>
+          {/* Toggle de Modo: Cuadrícula vs Mapa */}
+          <div style={{
+            display: 'flex',
+            background: 'rgba(2, 6, 23, 0.6)',
+            padding: '3px',
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.08)'
+          }}>
             <button
-              onClick={() => {
-                soundEffects.playClickSound();
-                setViewMode('grid');
-              }}
+              onClick={() => setViewMode('grid')}
               style={{
-                background: viewMode === 'grid' ? '#0ea5e9' : 'transparent',
-                color: '#fff',
-                border: 'none',
-                padding: '0.4rem 0.75rem',
+                padding: '0.35rem 0.75rem',
                 borderRadius: '6px',
-                fontSize: '0.8rem',
-                fontWeight: '600',
-                cursor: 'pointer'
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'grid' ? '#0284c7' : 'transparent',
+                color: viewMode === 'grid' ? '#ffffff' : '#94a3b8'
               }}
             >
-              🗂️ Tarjetas
+              Ver Fichas
             </button>
             <button
-              onClick={() => {
-                soundEffects.playClickSound();
-                setViewMode('map');
-              }}
+              onClick={() => setViewMode('map')}
               style={{
-                background: viewMode === 'map' ? '#0ea5e9' : 'transparent',
-                color: '#fff',
-                border: 'none',
-                padding: '0.4rem 0.75rem',
+                padding: '0.35rem 0.75rem',
                 borderRadius: '6px',
-                fontSize: '0.8rem',
-                fontWeight: '600',
-                cursor: 'pointer'
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === 'map' ? '#0284c7' : 'transparent',
+                color: viewMode === 'map' ? '#ffffff' : '#94a3b8'
               }}
             >
-              🗺️ Mapa Táctico
+              Mapa Nacional
             </button>
           </div>
         </div>
       </div>
 
-      {error && <div className="auth-error text-center">{error}</div>}
+      {error && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          color: '#f87171',
+          padding: '1rem',
+          borderRadius: '8px',
+          marginBottom: '1.5rem',
+          textAlign: 'center'
+        }}>
+          {error}
+        </div>
+      )}
 
-      {/* SKELETON LOADERS CON PULSO LUMINOSO */}
+      {/* Contenido Principal */}
       {loading ? (
         <div className="cases-grid">
           {[1, 2, 3, 4, 5, 6].map((sk) => (
-            <div key={sk} className="glass-panel" style={{ borderRadius: '14px', overflow: 'hidden', padding: '1rem' }}>
+            <div key={sk} style={{
+              background: 'rgba(15, 23, 42, 0.7)',
+              border: '1px solid rgba(255, 255, 255, 0.05)',
+              borderRadius: '12px',
+              padding: '1rem'
+            }}>
               <div className="skeleton-box" style={{ width: '100%', height: '220px', borderRadius: '8px', marginBottom: '1rem' }} />
-              <div className="skeleton-box" style={{ width: '70%', height: '20px', borderRadius: '4px', marginBottom: '0.65rem' }} />
+              <div className="skeleton-box" style={{ width: '70%', height: '18px', borderRadius: '4px', marginBottom: '0.5rem' }} />
               <div className="skeleton-box" style={{ width: '50%', height: '14px', borderRadius: '4px', marginBottom: '0.5rem' }} />
-              <div className="skeleton-box" style={{ width: '90%', height: '14px', borderRadius: '4px', marginBottom: '1rem' }} />
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
-                <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
-              </div>
+              <div className="skeleton-box" style={{ width: '90%', height: '14px', borderRadius: '4px' }} />
             </div>
           ))}
         </div>
       ) : viewMode === 'map' ? (
-        <div className="glass-panel animate-fade-in" style={{ padding: '1.25rem', marginBottom: '2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '14px',
+          padding: '1.25rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div>
-              <h3 style={{ margin: 0, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                🗺️ Mapa Táctico de Casos y Avistamientos
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#ffffff' }}>
+                Mapa de Casos y Puntos de Interés
               </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Visualización satelital y geográfica de alertas y puntos de desaparición en El Salvador
+              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.82rem', color: '#94a3b8' }}>
+                Ubicación geográfica de reportes y alertas en el territorio de El Salvador.
               </p>
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-              📍 {filteredCases.length} casos • 📡 {alerts.length} alertas georreferenciadas
-            </div>
+            <span style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+              {filteredCases.length} casos georreferenciados
+            </span>
           </div>
-          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
             <MapaAlertas alerts={alerts} />
           </div>
         </div>
       ) : filteredCases.length === 0 ? (
-        <div className="glass-panel text-center" style={{ padding: '4rem 2rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
-          <h3>No se encontraron reportes</h3>
-          <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-            No hay casos registrados que coincidan con sus criterios de búsqueda o departamento seleccionado.
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.6)',
+          border: '1px dashed rgba(255, 255, 255, 0.1)',
+          borderRadius: '14px',
+          padding: '4rem 2rem',
+          textAlign: 'center'
+        }}>
+          <Search size={40} color="#64748b" style={{ marginBottom: '1rem' }} />
+          <h3 style={{ color: '#ffffff', margin: 0 }}>No se encontraron reportes</h3>
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem', maxWidth: '420px', margin: '0.5rem auto 1.5rem' }}>
+            No hay casos registrados con los filtros seleccionados. Intente ajustar el departamento o término de búsqueda.
           </p>
+          <button
+            onClick={() => {
+              setSearch('');
+              setDeptFilter('');
+              setStatusFilter('');
+              setAgeGroupFilter('all');
+            }}
+            className="btn btn-secondary"
+            style={{ fontSize: '0.85rem' }}
+          >
+            Limpiar Filtros
+          </button>
         </div>
       ) : (
         <div className="cases-grid">
-          {filteredCases.map((caso, index) => (
-            <div
-              key={caso.id}
-              className="case-card hud-panel corner-hud spotlight-card stagger-item"
-              style={{ animationDelay: `${index * 45}ms` }}
-              onMouseMove={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-                e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-              }}
-            >
-              <div className="case-card-img-wrapper laser-scan-container" style={{ position: 'relative' }}>
-                <img 
-                  src={getImageUrl(caso.foto_url)} 
-                  alt={caso.nombre_desaparecido} 
-                  className="case-card-img"
-                  onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=400&q=80';
-                  }}
-                />
+          {filteredCases.map((caso) => {
+            const isDesaparecido = caso.estado === 'Desaparecido';
+            const isEnRescate = caso.estado === 'En Proceso de Rescate';
+            const isEncontrado = caso.estado === 'Encontrado';
 
-                {/* Línea de escaneo láser forense en hover */}
-                <div className="laser-scanline" />
-
-                {/* Malla holográfica de landmarks biométricos */}
-                <div className="landmark-overlay">
-                  <div className="landmark-dot" style={{ top: '38%', left: '42%' }} title="Ojo Izquierdo" />
-                  <div className="landmark-dot" style={{ top: '38%', left: '58%' }} title="Ojo Derecho" />
-                  <div className="landmark-dot" style={{ top: '50%', left: '50%' }} title="Nariz" />
-                  <div className="landmark-dot" style={{ top: '65%', left: '44%' }} title="Comisura Izquierda" />
-                  <div className="landmark-dot" style={{ top: '65%', left: '56%' }} title="Comisura Derecha" />
-                </div>
-
-                <span className={`status-badge ${caso.estado === 'En Proceso de Rescate' ? 'warning' : caso.estado.toLowerCase()}`}>
-                  {caso.estado}
-                </span>
-                <span style={{
-                  position: 'absolute',
-                  bottom: '6px',
-                  left: '6px',
-                  background: 'rgba(6, 13, 29, 0.85)',
-                  border: '1px solid rgba(0, 240, 255, 0.4)',
-                  color: '#00f0ff',
-                  fontSize: '0.65rem',
-                  padding: '0.15rem 0.4rem',
-                  borderRadius: '4px',
-                  fontFamily: 'monospace'
-                }}>
-                  ID #{caso.id} • BIO 512D
-                </span>
-              </div>
-              <div className="case-card-body">
-                <h3 className="case-card-title" style={{ color: '#f8fafc' }}>{caso.nombre_desaparecido}</h3>
-                <div className="case-card-meta">
-                  <div><strong>Edad:</strong> {caso.edad} años</div>
-                  <div><strong>Género:</strong> {caso.genero}</div>
-                  <div><strong>Visto el:</strong> {formatDate(caso.fecha_desaparicion)}</div>
-                  <div style={{ color: '#38bdf8', marginTop: '0.25rem', fontWeight: 600 }}>
-                    📍 {caso.ubicacion_desaparicion}
-                  </div>
-                </div>
-                <p className="case-card-desc">{caso.descripcion}</p>
-
-                {/* Botón "Ayudar" o indicador de rescate */}
-                {caso.estado === 'Desaparecido' && (
-                  user ? (
-                    <button
-                      onClick={() => handleAcceptSearch(caso.id)}
-                      disabled={acceptingId === caso.id}
-                      className="btn btn-warning"
-                      style={{
-                        width: '100%',
-                        marginTop: '0.75rem',
-                        marginBottom: '0.5rem',
-                        padding: '0.55rem 0.85rem',
-                        fontSize: '0.85rem',
-                        fontWeight: '700',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.45rem',
-                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                        border: 'none',
-                        color: '#ffffff',
-                        cursor: 'pointer',
-                        borderRadius: '6px',
-                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
-                      }}
-                    >
-                      <span>🤝</span>
-                      <span>{acceptingId === caso.id ? 'Aceptando...' : 'Ayudar en la Búsqueda'}</span>
-                    </button>
-                  ) : (
-                    <Link
-                      to="/login"
-                      className="btn btn-secondary"
-                      style={{
-                        width: '100%',
-                        marginTop: '0.75rem',
-                        marginBottom: '0.5rem',
-                        padding: '0.45rem',
-                        fontSize: '0.8rem',
-                        textAlign: 'center',
-                        display: 'block'
-                      }}
-                    >
-                      Inicia sesión para ayudar
-                    </Link>
-                  )
-                )}
-
-                {caso.estado === 'En Proceso de Rescate' && (
-                  <div
-                    style={{
-                      width: '100%',
-                      marginTop: '0.75rem',
-                      marginBottom: '0.5rem',
-                      padding: '0.5rem 0.75rem',
-                      borderRadius: '6px',
-                      background: 'rgba(245, 158, 11, 0.15)',
-                      border: '1px solid rgba(245, 158, 11, 0.4)',
-                      color: '#fbbf24',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem'
+            return (
+              <div
+                key={caso.id}
+                style={{
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: isEnRescate 
+                    ? '1px solid rgba(245, 158, 11, 0.4)' 
+                    : isDesaparecido 
+                    ? '1px solid rgba(239, 68, 68, 0.3)' 
+                    : '1px solid rgba(16, 185, 129, 0.3)',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+                }}
+              >
+                {/* Imagen del Caso */}
+                <div style={{ position: 'relative', width: '100%', height: '230px', background: '#090d16' }}>
+                  <img
+                    src={getImageUrl(caso.foto_url)}
+                    alt={caso.nombre_desaparecido}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=400&q=80';
                     }}
-                  >
-                    <span>🚨 En Proceso de Rescate</span>
-                    {caso.rescatista_nombre && (
-                      <span style={{ opacity: 0.9, fontSize: '0.75rem' }}>({caso.rescatista_nombre.split(' ')[0]})</span>
-                    )}
-                  </div>
-                )}
+                  />
 
-                {/* Botón rápido para reportar avistamiento de este caso */}
-                <button
-                  onClick={() => {
-                    setSightingInitialCaseId(caso.id);
-                    setSightingModalOpen(true);
-                  }}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(14, 165, 233, 0.08)',
-                    border: '1px dashed rgba(14, 165, 233, 0.4)',
-                    color: '#38bdf8',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    padding: '0.45rem',
-                    borderRadius: '6px',
-                    marginBottom: '0.4rem',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <span>📸</span>
-                  <span>Reportar que vi a esta persona</span>
-                </button>
-
-                {/* Acciones Solidarias: Boletín Se Busca y Proyección IA */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                  <button
-                    onClick={() => setSelectedFlyerCase(caso)}
-                    style={{
-                      background: 'rgba(239, 68, 68, 0.12)',
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      color: '#f87171',
-                      borderRadius: '6px',
-                      padding: '0.35rem',
-                      fontSize: '0.72rem',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.25rem'
-                    }}
-                  >
-                    <span>📄</span>
-                    <span>Afiche Se Busca</span>
-                  </button>
-                  <button
-                    onClick={() => setAgeProgressionCase(caso)}
-                    style={{
-                      background: 'rgba(0, 240, 255, 0.12)',
-                      border: '1px solid rgba(0, 240, 255, 0.35)',
-                      color: '#00f0ff',
-                      borderRadius: '6px',
-                      padding: '0.35rem',
-                      fontSize: '0.72rem',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.25rem'
-                    }}
-                  >
-                    <span>⏳</span>
-                    <span>Proyección Edad IA</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => {
-                    const text = `🚨 ALERTA: Ayúdanos a encontrar a ${caso.nombre_desaparecido} (${caso.edad} años). Visto en: ${caso.ubicacion_desaparicion}. Teléfono: ${caso.telefono_contacto}. Info: ${window.location.origin}/casos/${caso.id}`;
-                    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-                  }}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(37, 211, 102, 0.12)',
-                    border: '1px solid rgba(37, 211, 102, 0.3)',
-                    color: '#4ade80',
-                    borderRadius: '6px',
-                    padding: '0.35rem',
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    marginBottom: '0.75rem'
-                  }}
-                >
-                  <span>💬</span>
-                  <span>Compartir en WhatsApp</span>
-                </button>
-
-                <div className="case-card-footer">
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Por: {caso.creador_nombre ? caso.creador_nombre.split(' ')[0] : 'Usuario'}
+                  {/* Badge de Estado */}
+                  <span style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    padding: '0.25rem 0.65rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.02em',
+                    background: isDesaparecido 
+                      ? 'rgba(225, 29, 72, 0.92)' 
+                      : isEnRescate 
+                      ? 'rgba(217, 119, 6, 0.92)' 
+                      : 'rgba(5, 150, 105, 0.92)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.4)'
+                  }}>
+                    {caso.estado}
                   </span>
-                  <Link to={`/caso/${caso.id}`} className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                    Ver Detalle
-                  </Link>
+
+                  {/* Identificador de Caso */}
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '8px',
+                    left: '8px',
+                    background: 'rgba(2, 6, 23, 0.85)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#cbd5e1',
+                    fontSize: '0.68rem',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '4px',
+                    fontWeight: 600,
+                    fontFamily: 'monospace'
+                  }}>
+                    EXP #{caso.id}
+                  </span>
+                </div>
+
+                {/* Cuerpo de la Tarjeta - Limpio y Ordenado */}
+                <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                    <h3 style={{
+                      fontSize: '1.15rem',
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      margin: 0,
+                      lineHeight: 1.25
+                    }}>
+                      {caso.nombre_desaparecido}
+                    </h3>
+                  </div>
+
+                  {/* Cuadro de Metadatos Organizado */}
+                  <div style={{
+                    background: 'rgba(2, 6, 23, 0.45)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderRadius: '8px',
+                    padding: '0.65rem 0.85rem',
+                    fontSize: '0.82rem',
+                    color: '#94a3b8',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.35rem',
+                    marginBottom: '0.85rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                      <span><strong style={{ color: '#e2e8f0' }}>Edad:</strong> {caso.edad} años</span>
+                      <span><strong style={{ color: '#e2e8f0' }}>Género:</strong> {caso.genero}</span>
+                    </div>
+                    <div>
+                      <strong style={{ color: '#e2e8f0' }}>Visto por última vez:</strong> {formatDate(caso.fecha_desaparicion)}
+                    </div>
+                    <div style={{ color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <MapPin size={13} />
+                      <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {caso.ubicacion_desaparicion || 'El Salvador'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {caso.descripcion && (
+                    <p style={{
+                      fontSize: '0.82rem',
+                      color: '#cbd5e1',
+                      lineHeight: 1.5,
+                      marginBottom: '1rem',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}>
+                      {caso.descripcion}
+                    </p>
+                  )}
+
+                  {/* Acciones del Caso Organizadas */}
+                  <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {/* Botón Principal de Expediente (Abre dentro del mismo portal) */}
+                    <div style={{
+                      marginTop: 'auto',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '0.5rem',
+                      paddingTop: '0.4rem'
+                    }}>
+                      <Link
+                        to={`/caso/${caso.id}`}
+                        style={{
+                          padding: '0.6rem 0.5rem',
+                          borderRadius: '8px',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          textAlign: 'center',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          transition: 'background 0.2s',
+                          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)'
+                        }}
+                      >
+                        <Eye size={14} />
+                        <span>Ver Ficha</span>
+                      </Link>
+
+                      <button
+                        onClick={() => {
+                          setSightingInitialCaseId(caso.id);
+                          setSightingModalOpen(true);
+                        }}
+                        title="Aportar pista o avistamiento ciudadano"
+                        style={{
+                          padding: '0.6rem 0.5rem',
+                          borderRadius: '8px',
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          color: '#38bdf8',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.35rem',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <span>Aportar Pista</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Modal interactivo de avistamiento ciudadano con foto de evidencia */}
+      {/* Modales */}
       <ReportSightingModal
         isOpen={sightingModalOpen}
         onClose={() => setSightingModalOpen(false)}
         initialCaseId={sightingInitialCaseId}
         cases={cases}
         onSuccess={(alerta) => {
-          setActionSuccess(`¡Evidencia fotográfica enviada con éxito para ${alerta.nombre_desaparecido || 'el caso'}! Moderadores y autoridades han sido notificados.`);
-          setTimeout(() => setActionSuccess(''), 7000);
+          setActionSuccess(`¡Información registrada exitosamente para ${alerta.nombre_desaparecido || 'el caso'}! Las autoridades han sido notificadas.`);
+          setTimeout(() => setActionSuccess(''), 6000);
         }}
       />
 
-      {/* Modal de Boletín Oficial de Se Busca para Imprimir / Compartir */}
       <MissingPersonFlyerModal
         isOpen={Boolean(selectedFlyerCase)}
         caso={selectedFlyerCase}
         onClose={() => setSelectedFlyerCase(null)}
       />
 
-      {/* Modal de Búsqueda Inversa Biométrica 1:N */}
       <ReversePhotoSearchModal
         isOpen={reverseSearchOpen}
         onClose={() => setReverseSearchOpen(false)}
-      />
-
-      {/* Modal de Simulación de Proyección de Edad Facial */}
-      <AgeProgressionModal
-        isOpen={Boolean(ageProgressionCase)}
-        caso={ageProgressionCase}
-        onClose={() => setAgeProgressionCase(null)}
       />
     </div>
   );
 };
 
 export default Dashboard;
-
-
