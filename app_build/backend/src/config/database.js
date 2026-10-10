@@ -4,18 +4,28 @@ const path = require('path');
 require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
+const connectionString = process.env.DATABASE_URL;
 
-const poolConfig = {
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'localizasv',
-  password: process.env.DB_PASSWORD || 'postgres',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  connectionTimeoutMillis: 5000
-};
+let poolConfig = {};
 
-if (isProduction) {
-  poolConfig.ssl = { rejectUnauthorized: false };
+if (connectionString) {
+  poolConfig = {
+    connectionString,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 5000
+  };
+} else {
+  poolConfig = {
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'localizasv',
+    password: process.env.DB_PASSWORD || 'postgres',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    connectionTimeoutMillis: 5000
+  };
+  if (isProduction) {
+    poolConfig.ssl = { rejectUnauthorized: false };
+  }
 }
 
 const pool = new Pool(poolConfig);
@@ -25,7 +35,7 @@ const mockFilePath = path.join(__dirname, '../../mock_db.json');
 
 // Initialize mock DB file if it doesn't exist
 if (!fs.existsSync(mockFilePath)) {
-  fs.writeFileSync(mockFilePath, JSON.stringify({ usuarios: [], casos: [] }, null, 2));
+  fs.writeFileSync(mockFilePath, JSON.stringify({ usuarios: [], casos: [], alertas: [], camaras: [] }, null, 2));
 }
 
 const readMockDb = () => {
@@ -35,32 +45,10 @@ const readMockDb = () => {
     if (!parsed.usuarios) parsed.usuarios = [];
     if (!parsed.casos) parsed.casos = [];
     if (!parsed.alertas) parsed.alertas = [];
-    if (!parsed.camaras || parsed.camaras.length === 0) {
-      parsed.camaras = [
-        {
-          id: 1,
-          nombre: "Cámara Móvil Teléfono (IP Webcam)",
-          ubicacion: "Patrulla Móvil PNC - Sector San Salvador",
-          lat: 13.6929,
-          lng: -89.2182,
-          stream_url: "http://172.16.2.243:8080/video",
-          snapshot_url: "http://172.16.2.243:8080/shot.jpg",
-          base_url: "http://172.16.2.243:8080",
-          ip_address: "172.16.2.243:8080",
-          tipo: "Cámara Móvil IP Webcam",
-          resolucion: "1080p FHD",
-          fps: 30,
-          estado: "activa",
-          linterna: false,
-          zoom: 0,
-          created_at: new Date().toISOString()
-        }
-      ];
-      writeMockDb(parsed);
-    }
+    if (!parsed.camaras) parsed.camaras = [];
     return parsed;
   } catch (err) {
-    return { usuarios: [], casos: [], alertas: [] };
+    return { usuarios: [], casos: [], alertas: [], camaras: [] };
   }
 };
 
@@ -68,20 +56,18 @@ const writeMockDb = (data) => {
   fs.writeFileSync(mockFilePath, JSON.stringify(data, null, 2));
 };
 
-// Check database connection and handle fallback
+// Probar conexión al arrancar
 pool.connect((err, client, release) => {
   if (err) {
-    console.warn('\x1b[33m%s\x1b[0m', '⚠️  ADVERTENCIA: No se pudo conectar a PostgreSQL.');
-    console.warn('\x1b[31m%s\x1b[0m', `👉 Detalle del error: ${err.message}`);
-    console.warn('\x1b[33m%s\x1b[0m', '👉 Iniciando base de datos simulada en memoria/JSON para revisión local de la Fase 1.');
-    console.warn('\x1b[33m%s\x1b[0m', `👉 Datos persistidos en: ${mockFilePath}`);
+    console.warn('\x1b[33m%s\x1b[0m', '⚠️ ADVERTENCIA: No se pudo conectar a PostgreSQL.');
+    console.warn('\x1b[31m%s\x1b[0m', `👉 Detalle exacto del error: ${err.message || err}`);
+    console.warn('\x1b[33m%s\x1b[0m', '👉 Activando persistencia local segura para evitar caída del servicio.');
     useMockDb = true;
   } else {
-    console.log('PostgreSQL database connected successfully.');
+    console.log('✅ Conexión exitosa a la base de datos PostgreSQL.');
     release();
   }
 });
-
 // Mock database query handler
 const mockQuery = (text, params = []) => {
   const db = readMockDb();
@@ -975,5 +961,8 @@ module.exports = {
     }
     return pool.query(text, params);
   },
-  pool
+  pool,
+  connect: (...args) => pool.connect(...args),
+  on: (...args) => pool.on(...args),
+  end: (...args) => pool.end(...args)
 };
