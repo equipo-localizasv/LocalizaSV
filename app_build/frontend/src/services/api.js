@@ -27,8 +27,8 @@ const getApiBaseUrl = () => {
       return `http://${hostname}:3001/api`;
     }
   }
-  // 4. URL de producción en Railway
-  return 'https://localizasv-production.up.railway.app/api';
+  // 4. URL de producción en render
+  return 'https://localizasv-backend.onrender.com/api';
 };
 
 export const getServerBaseUrl = () => {
