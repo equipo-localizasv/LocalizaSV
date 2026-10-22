@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { getServerBaseUrl } from '../services/api';
 
 const MissingPersonFlyerModal = ({ isOpen, onClose, caso }) => {
   const printAreaRef = useRef(null);
@@ -9,7 +10,7 @@ const MissingPersonFlyerModal = ({ isOpen, onClose, caso }) => {
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    return `http://localhost:3001${path}`;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   const formatDate = (dateStr) => {

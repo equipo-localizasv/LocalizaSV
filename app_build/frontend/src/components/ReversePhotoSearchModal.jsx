@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Upload, Shield, CheckCircle, AlertTriangle, User, Calendar, MapPin, X, ArrowRight, Sparkles } from 'lucide-react';
-import api from '../services/api';
+import api, { getServerBaseUrl } from '../services/api';
 
 const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
   const [file, setFile] = useState(null);
@@ -53,7 +53,7 @@ const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    return `http://localhost:3001${path}`;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   return (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import api, { getServerBaseUrl } from '../services/api';
 import socketService from '../services/socket';
 import { AuthContext } from '../App';
 import { calculateFastestEmergencyRoute } from '../services/emergencyRouting';
@@ -521,7 +521,7 @@ const AuthorityPanel = () => {
   const getImageUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    return `http://localhost:3001${path}`;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   return (

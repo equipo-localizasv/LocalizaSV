@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
-import api from '../services/api';
+import api, { getServerBaseUrl } from '../services/api';
 import CaseDossierModal from '../components/CaseDossierModal';
 import RegisterCommunityCameraModal from '../components/RegisterCommunityCameraModal';
 import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
@@ -44,7 +44,7 @@ const Profile = () => {
   useEffect(() => {
     if (user) {
       setNombre(user.nombre || '');
-      setPreview(user.selfie_url ? `http://localhost:3001${user.selfie_url}` : null);
+      setPreview(user.selfie_url ? (user.selfie_url.startsWith('http') ? user.selfie_url : `${getServerBaseUrl()}${user.selfie_url}`) : null);
       fetchUserCases();
     }
   }, [user]);
@@ -110,7 +110,8 @@ const Profile = () => {
 
   const getImageUrl = (path) => {
     if (!path) return '';
-    return `http://localhost:3001${path}`;
+    if (path.startsWith('http')) return path;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   const formatDate = (dateStr) => {

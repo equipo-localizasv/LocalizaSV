@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api';
+import api, { getServerBaseUrl } from '../services/api';
 import socketService from '../services/socket';
 import { AuthContext } from '../App';
 import ReportSightingModal from '../components/ReportSightingModal';
@@ -134,7 +134,8 @@ const Dashboard = () => {
 
   const getImageUrl = (path) => {
     if (!path) return '';
-    return `http://localhost:3001${path}`;
+    if (path.startsWith('http')) return path;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   const formatDate = (dateStr) => {

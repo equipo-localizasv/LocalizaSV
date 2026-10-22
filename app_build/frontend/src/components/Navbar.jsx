@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../App';
+import { getServerBaseUrl } from '../services/api';
 import RegisterCommunityCameraModal from './RegisterCommunityCameraModal';
 import { 
   Shield,
@@ -32,7 +33,8 @@ const Navbar = () => {
 
   const getImageUrl = (path) => {
     if (!path) return '';
-    return `http://localhost:3001${path}`;
+    if (path.startsWith('http')) return path;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   const userRole = user?.rol || 'ciudadano';

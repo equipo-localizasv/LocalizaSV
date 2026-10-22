@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import api, { getServerBaseUrl } from '../services/api';
 import {
   FileText,
   MapPin,
@@ -169,7 +169,8 @@ const CaseDossierModal = ({ isOpen, caseId, onClose, onDispatchGps = null }) => 
 
   const getImageUrl = (path) => {
     if (!path) return '';
-    return `http://localhost:3001${path}`;
+    if (path.startsWith('http')) return path;
+    return `${getServerBaseUrl()}${path}`;
   };
 
   const formatDate = (dateStr) => {

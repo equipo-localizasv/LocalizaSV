@@ -3,6 +3,8 @@
  * Requisitos 21, 22, 23, 24
  */
 
+import { getServerBaseUrl } from './api';
+
 class SocketService {
   constructor() {
     this.ws = null;
@@ -10,14 +12,21 @@ class SocketService {
     this.token = null;
     this.reconnectTimer = null;
 
-    // URL dinámica e inteligente para desarrollo, redes locales, dominios DDNS y producción
+    // URL dinámica e inteligente para desarrollo, redes locales y producción (Render)
     const getWsBaseUrl = () => {
+      // 1. Variable de entorno explícita (Vercel / Vite)
+      let rawWsUrl = '';
       if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) {
-        return import.meta.env.VITE_WS_URL;
+        rawWsUrl = import.meta.env.VITE_WS_URL;
       }
+      if (rawWsUrl) {
+        // Normalizar a wss:// o ws:// si el usuario colocó https:// o http://
+        return rawWsUrl.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://');
+      }
+
+      // 2. Si estamos en desarrollo local o red privada LAN
       if (typeof window !== 'undefined' && window.location) {
-        const isHttps = window.location.protocol === 'https:';
-        const proto = isHttps ? 'wss:' : 'ws:';
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const hostname = window.location.hostname;
         if (
           hostname === 'localhost' ||
@@ -29,15 +38,15 @@ class SocketService {
         ) {
           return `${proto}//${hostname}:3001`;
         }
-        if (hostname.endsWith('.dpdns.org')) {
-          return `${proto}//${hostname}`;
-        }
-        if (hostname.includes('railway') || hostname.includes('netlify')) {
-          return 'wss://localizasv-production.up.railway.app';
-        }
-        return `${proto}//${window.location.host}`;
       }
-      return 'ws://localhost:3001';
+
+      // 3. Producción: derivar de la URL del backend (Render)
+      const serverUrl = getServerBaseUrl();
+      if (serverUrl) {
+        return serverUrl.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://');
+      }
+
+      return 'wss://localizasv-backend.onrender.com';
     };
 
     this.url = getWsBaseUrl();

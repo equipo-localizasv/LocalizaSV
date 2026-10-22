@@ -1676,7 +1676,9 @@ const ModeratorPanel = () => {
                   const isStreamFailed = Boolean(camStreamErrors[cam.id]);
                   const directStreamUrl = cam.stream_url || `${camBase}/video`;
                   const proxyStreamUrl = `${getServerBaseUrl()}/api/camaras/${cam.id}/stream`;
-                  const preferDirect = useDirectStreamMode[cam.id] !== undefined ? Boolean(useDirectStreamMode[cam.id]) : Boolean(cam.ip_address);
+                  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                  const canUseDirect = !isHttps || directStreamUrl.startsWith('https://');
+                  const preferDirect = canUseDirect && (useDirectStreamMode[cam.id] !== undefined ? Boolean(useDirectStreamMode[cam.id]) : Boolean(cam.ip_address));
                   const rawStreamUrl = preferDirect ? directStreamUrl : proxyStreamUrl;
                   const videoStreamUrl = `${rawStreamUrl}${rawStreamUrl.includes('?') ? '&' : '?'}t=${streamRefreshKey}`;
                   const status = camStatus[cam.id] || { online: true, latency_ms: 18 };
@@ -1957,7 +1959,12 @@ const ModeratorPanel = () => {
                                 src={proxyStreamUrl}
                                 alt={c.nombre}
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                onError={(e) => { e.currentTarget.src = directStreamUrl; }}
+                                onError={(e) => {
+                                  const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                                  if (!isHttpsPage || directStreamUrl.startsWith('https://')) {
+                                    e.currentTarget.src = directStreamUrl;
+                                  }
+                                }}
                               />
                               {isSelected && (
                                 <span style={{
@@ -2116,8 +2123,10 @@ const ModeratorPanel = () => {
                   const isStreamFailed = Boolean(camStreamErrors[cam.id]);
                   const directStreamUrl = cam.stream_url || `${camBase}/video`;
                   const proxyStreamUrl = `${getServerBaseUrl()}/api/camaras/${cam.id}/stream`;
-                  const preferDirect = useDirectStreamMode[cam.id] !== undefined ? Boolean(useDirectStreamMode[cam.id]) : Boolean(cam.ip_address);
-                  const rawStreamUrl = (preferDirect || isStreamFailed) ? directStreamUrl : proxyStreamUrl;
+                  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                  const canUseDirect = !isHttps || directStreamUrl.startsWith('https://');
+                  const preferDirect = canUseDirect && (useDirectStreamMode[cam.id] !== undefined ? Boolean(useDirectStreamMode[cam.id]) : Boolean(cam.ip_address));
+                  const rawStreamUrl = (preferDirect || (isStreamFailed && canUseDirect)) ? directStreamUrl : proxyStreamUrl;
                   const videoStreamUrl = `${rawStreamUrl}${rawStreamUrl.includes('?') ? '&' : '?'}t=${streamRefreshKey}`;
                   const status = camStatus[cam.id] || { online: true, latency_ms: null, testing: false };
                   const curZoom = digitalZoomState[cam.id] || 1;
@@ -4920,7 +4929,9 @@ const ModeratorPanel = () => {
             <div style={{ position: 'relative', height: '520px', background: '#000' }}>
               {(() => {
                 const expandedDirect = expandedCamera.stream_url || (expandedCamera.base_url ? `${expandedCamera.base_url}/video` : (expandedCamera.ip_address ? `http://${expandedCamera.ip_address}/video` : ''));
-                const expandedPreferDirect = useDirectStreamMode[expandedCamera.id] !== undefined ? Boolean(useDirectStreamMode[expandedCamera.id]) : Boolean(expandedCamera.ip_address);
+                const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                const canUseDirect = !isHttps || (expandedDirect && expandedDirect.startsWith('https://'));
+                const expandedPreferDirect = canUseDirect && (useDirectStreamMode[expandedCamera.id] !== undefined ? Boolean(useDirectStreamMode[expandedCamera.id]) : Boolean(expandedCamera.ip_address));
                 const expandedSrc = (expandedPreferDirect && expandedDirect)
                   ? `${expandedDirect}${expandedDirect.includes('?') ? '&' : '?'}t=${streamRefreshKey}`
                   : `${getServerBaseUrl()}/api/camaras/${expandedCamera.id}/stream?t=${streamRefreshKey}`;
