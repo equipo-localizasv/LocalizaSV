@@ -453,6 +453,36 @@ const ModeratorPanel = () => {
     }));
     try {
       const res = await api.get(`/camaras/${camId}/ping`);
+      // Si el backend en la nube (Render) no puede alcanzar la IP privada pero el usuario está en la misma red Wi-Fi:
+      const targetCam = cameras.find((c) => parseInt(c.id) === parseInt(camId));
+      const isPrivate = targetCam && targetCam.ip_address && (
+        targetCam.ip_address.startsWith('192.168.') ||
+        targetCam.ip_address.startsWith('10.') ||
+        targetCam.ip_address.startsWith('172.') ||
+        targetCam.ip_address.includes('localhost') ||
+        targetCam.ip_address.includes('127.0.0.1')
+      );
+
+      if (!res.data.online && isPrivate) {
+        const testImg = new Image();
+        const testUrl = targetCam.stream_url || (targetCam.base_url ? `${targetCam.base_url}/video` : `http://${targetCam.ip_address}/video`);
+        testImg.onload = () => {
+          setCamStatus((prev) => ({
+            ...prev,
+            [camId]: { online: true, latency_ms: 18, error: '', testing: false }
+          }));
+          setCamStreamErrors((prev) => ({ ...prev, [camId]: false }));
+        };
+        testImg.onerror = () => {
+          setCamStatus((prev) => ({
+            ...prev,
+            [camId]: { online: false, latency_ms: null, error: 'Sin respuesta en red local (Wi-Fi)', testing: false }
+          }));
+        };
+        testImg.src = `${testUrl}${testUrl.includes('?') ? '&' : '?'}probe=${Date.now()}`;
+        return;
+      }
+
       setCamStatus((prev) => ({
         ...prev,
         [camId]: {
@@ -1671,9 +1701,16 @@ const ModeratorPanel = () => {
                   const isStreamFailed = Boolean(camStreamErrors[cam.id]);
                   const directStreamUrl = cam.stream_url || `${camBase}/video`;
                   const proxyStreamUrl = `${getServerBaseUrl()}/api/camaras/${cam.id}/stream`;
-                  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-                  const canUseDirect = !isHttps || directStreamUrl.startsWith('https://');
-                  const preferDirect = canUseDirect && (useDirectStreamMode[cam.id] !== undefined ? Boolean(useDirectStreamMode[cam.id]) : Boolean(cam.ip_address));
+                  const isPrivateCam = Boolean(cam.ip_address && (
+                    cam.ip_address.startsWith('192.168.') ||
+                    cam.ip_address.startsWith('10.') ||
+                    cam.ip_address.startsWith('172.') ||
+                    cam.ip_address.includes('localhost') ||
+                    cam.ip_address.includes('127.0.0.1')
+                  ));
+                  const preferDirect = useDirectStreamMode[cam.id] !== undefined
+                    ? Boolean(useDirectStreamMode[cam.id])
+                    : (isPrivateCam || Boolean(cam.ip_address));
                   const rawStreamUrl = preferDirect ? directStreamUrl : proxyStreamUrl;
                   const videoStreamUrl = `${rawStreamUrl}${rawStreamUrl.includes('?') ? '&' : '?'}t=${streamRefreshKey}`;
                   const status = camStatus[cam.id] || { online: true, latency_ms: 18 };
@@ -2118,10 +2155,17 @@ const ModeratorPanel = () => {
                   const isStreamFailed = Boolean(camStreamErrors[cam.id]);
                   const directStreamUrl = cam.stream_url || `${camBase}/video`;
                   const proxyStreamUrl = `${getServerBaseUrl()}/api/camaras/${cam.id}/stream`;
-                  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-                  const canUseDirect = !isHttps || directStreamUrl.startsWith('https://');
-                  const preferDirect = canUseDirect && (useDirectStreamMode[cam.id] !== undefined ? Boolean(useDirectStreamMode[cam.id]) : Boolean(cam.ip_address));
-                  const rawStreamUrl = (preferDirect || (isStreamFailed && canUseDirect)) ? directStreamUrl : proxyStreamUrl;
+                  const isPrivateCam = Boolean(cam.ip_address && (
+                    cam.ip_address.startsWith('192.168.') ||
+                    cam.ip_address.startsWith('10.') ||
+                    cam.ip_address.startsWith('172.') ||
+                    cam.ip_address.includes('localhost') ||
+                    cam.ip_address.includes('127.0.0.1')
+                  ));
+                  const preferDirect = useDirectStreamMode[cam.id] !== undefined
+                    ? Boolean(useDirectStreamMode[cam.id])
+                    : (isPrivateCam || Boolean(cam.ip_address));
+                  const rawStreamUrl = (preferDirect || isStreamFailed) ? directStreamUrl : proxyStreamUrl;
                   const videoStreamUrl = `${rawStreamUrl}${rawStreamUrl.includes('?') ? '&' : '?'}t=${streamRefreshKey}`;
                   const status = camStatus[cam.id] || { online: true, latency_ms: null, testing: false };
                   const curZoom = digitalZoomState[cam.id] || 1;
@@ -4924,9 +4968,16 @@ const ModeratorPanel = () => {
             <div style={{ position: 'relative', height: '520px', background: '#000' }}>
               {(() => {
                 const expandedDirect = expandedCamera.stream_url || (expandedCamera.base_url ? `${expandedCamera.base_url}/video` : (expandedCamera.ip_address ? `http://${expandedCamera.ip_address}/video` : ''));
-                const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-                const canUseDirect = !isHttps || (expandedDirect && expandedDirect.startsWith('https://'));
-                const expandedPreferDirect = canUseDirect && (useDirectStreamMode[expandedCamera.id] !== undefined ? Boolean(useDirectStreamMode[expandedCamera.id]) : Boolean(expandedCamera.ip_address));
+                const isPrivateExp = Boolean(expandedCamera.ip_address && (
+                  expandedCamera.ip_address.startsWith('192.168.') ||
+                  expandedCamera.ip_address.startsWith('10.') ||
+                  expandedCamera.ip_address.startsWith('172.') ||
+                  expandedCamera.ip_address.includes('localhost') ||
+                  expandedCamera.ip_address.includes('127.0.0.1')
+                ));
+                const expandedPreferDirect = useDirectStreamMode[expandedCamera.id] !== undefined 
+                  ? Boolean(useDirectStreamMode[expandedCamera.id]) 
+                  : (isPrivateExp || Boolean(expandedCamera.ip_address));
                 const expandedSrc = (expandedPreferDirect && expandedDirect)
                   ? `${expandedDirect}${expandedDirect.includes('?') ? '&' : '?'}t=${streamRefreshKey}`
                   : `${getServerBaseUrl()}/api/camaras/${expandedCamera.id}/stream?t=${streamRefreshKey}`;
