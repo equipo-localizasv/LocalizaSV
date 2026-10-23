@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import api, { getServerBaseUrl } from '../services/api';
+import api, { getServerBaseUrl, getImageUrl } from '../services/api';
 import socketService from '../services/socket';
 import { AuthContext } from '../App';
 import { calculateFastestEmergencyRoute } from '../services/emergencyRouting';
@@ -518,11 +518,6 @@ const AuthorityPanel = () => {
     return `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}`;
   };
 
-  const getImageUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${getServerBaseUrl()}${path}`;
-  };
 
   return (
     <div className="pnc-command-container animate-fade-in">

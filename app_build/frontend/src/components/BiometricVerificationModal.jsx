@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api, { getServerBaseUrl } from '../services/api';
+import api, { getServerBaseUrl, getImageUrl } from '../services/api';
 
 const BiometricVerificationModal = ({ alerta, cases, onClose, onConfirm, onDiscard }) => {
   const [loading, setLoading] = useState(true);
@@ -13,13 +13,8 @@ const BiometricVerificationModal = ({ alerta, cases, onClose, onConfirm, onDisca
     foto_url: alerta.caso_foto_url || null
   };
 
-  const fotoOriginalUrl = caso.foto_url
-    ? (caso.foto_url.startsWith('http') ? caso.foto_url : `${getServerBaseUrl()}${caso.foto_url}`)
-    : null;
-
-  const fotoEvidenciaUrl = alerta.foto_evidencia_url
-    ? (alerta.foto_evidencia_url.startsWith('http') ? alerta.foto_evidencia_url : `${getServerBaseUrl()}${alerta.foto_evidencia_url}`)
-    : null;
+  const fotoOriginalUrl = caso.foto_url ? getImageUrl(caso.foto_url) : null;
+  const fotoEvidenciaUrl = alerta.foto_evidencia_url ? getImageUrl(alerta.foto_evidencia_url) : null;
 
   useEffect(() => {
     const runForensicComparison = async () => {

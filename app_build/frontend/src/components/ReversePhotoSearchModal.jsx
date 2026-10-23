@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Upload, Shield, CheckCircle, AlertTriangle, User, Calendar, MapPin, X, ArrowRight, Sparkles } from 'lucide-react';
-import api, { getServerBaseUrl } from '../services/api';
+import api, { getServerBaseUrl, getImageUrl } from '../services/api';
 
 const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
   const [file, setFile] = useState(null);
@@ -50,11 +50,6 @@ const ReversePhotoSearchModal = ({ isOpen, onClose }) => {
     }
   };
 
-  const getImageUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${getServerBaseUrl()}${path}`;
-  };
 
   return (
     <div className="modal-overlay animate-fade-in" style={{ zIndex: 12000, overflowY: 'auto', padding: '1.5rem 1rem' }}>

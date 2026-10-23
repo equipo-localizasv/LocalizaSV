@@ -52,6 +52,27 @@ export const getServerBaseUrl = () => {
   return 'https://localizasv-backend.onrender.com';
 };
 
+/**
+ * Normaliza y resuelve cualquier URL de imagen del backend (selfies, evidencias, fotos de casos).
+ * Limpia referencias residuales a localhost o railway almacenadas en la base de datos.
+ */
+export const getImageUrl = (path) => {
+  if (!path) return '';
+  let cleanPath = String(path).trim()
+    .replace(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i, '')
+    .replace(/^https?:\/\/[^/]*\.railway\.app/i, '');
+
+  if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+    return cleanPath;
+  }
+
+  if (!cleanPath.startsWith('/')) {
+    cleanPath = `/${cleanPath}`;
+  }
+
+  return `${getServerBaseUrl()}${cleanPath}`;
+};
+
 const API_BASE_URL = getApiBaseUrl();
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import api, { getServerBaseUrl } from '../services/api';
+import api, { getServerBaseUrl, getImageUrl } from '../services/api';
 
 const BiometricLab = ({ cases = [], alerts = [] }) => {
   const [activeTool, setActiveTool] = useState('1to1'); // '1to1' | '1toN' | 'diagnostico'
@@ -39,7 +39,7 @@ const BiometricLab = ({ cases = [], alerts = [] }) => {
     const c = cases.find((item) => item.id === casoId);
     if (c && c.foto_url) {
       setPhoto1({ isExistingUrl: true, url: c.foto_url });
-      setPhoto1Preview(c.foto_url.startsWith('http') ? c.foto_url : `${getServerBaseUrl()}${c.foto_url}`);
+      setPhoto1Preview(getImageUrl(c.foto_url));
     }
   };
 
@@ -49,7 +49,7 @@ const BiometricLab = ({ cases = [], alerts = [] }) => {
     const a = alerts.find((item) => item.id === alertId);
     if (a && a.foto_evidencia_url) {
       setPhoto2({ isExistingUrl: true, url: a.foto_evidencia_url });
-      setPhoto2Preview(a.foto_evidencia_url.startsWith('http') ? a.foto_evidencia_url : `${getServerBaseUrl()}${a.foto_evidencia_url}`);
+      setPhoto2Preview(getImageUrl(a.foto_evidencia_url));
     }
   };
 
@@ -518,7 +518,7 @@ const BiometricLab = ({ cases = [], alerts = [] }) => {
                             #{idx + 1}
                           </span>
                           <img
-                            src={cand.foto_url.startsWith('http') ? cand.foto_url : `${getServerBaseUrl()}${cand.foto_url}`}
+                            src={getImageUrl(cand.foto_url)}
                             alt={cand.nombre_desaparecido}
                             style={{ width: '55px', height: '55px', borderRadius: '8px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.2)' }}
                           />

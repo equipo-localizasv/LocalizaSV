@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../App';
-import api, { getServerBaseUrl } from '../services/api';
+import api, { getServerBaseUrl, getImageUrl } from '../services/api';
 import CaseDossierModal from '../components/CaseDossierModal';
 import RegisterCommunityCameraModal from '../components/RegisterCommunityCameraModal';
 import MissingPersonFlyerModal from '../components/MissingPersonFlyerModal';
@@ -44,7 +44,7 @@ const Profile = () => {
   useEffect(() => {
     if (user) {
       setNombre(user.nombre || '');
-      setPreview(user.selfie_url ? (user.selfie_url.startsWith('http') ? user.selfie_url : `${getServerBaseUrl()}${user.selfie_url}`) : null);
+      setPreview(user.selfie_url ? getImageUrl(user.selfie_url) : null);
       fetchUserCases();
     }
   }, [user]);
@@ -108,11 +108,6 @@ const Profile = () => {
     ? `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`ID:${user.id}|DUI:${user.dui}|ROL:${user.rol}|NAME:${user.nombre}`)}`
     : '';
 
-  const getImageUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${getServerBaseUrl()}${path}`;
-  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'No especificada';

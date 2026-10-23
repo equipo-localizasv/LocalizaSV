@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import api, { getServerBaseUrl } from '../services/api';
+import api, { getServerBaseUrl, getImageUrl } from '../services/api';
 import socketService from '../services/socket';
 import ActiveAlertsMap from '../components/ActiveAlertsMap';
 import BiometricVerificationModal from '../components/BiometricVerificationModal';
@@ -869,11 +869,6 @@ const ModeratorPanel = () => {
     }
   };
 
-  const getImageUrl = (path) => {
-    if (!path) return '';
-    if (path.startsWith('http')) return path;
-    return `${getServerBaseUrl()}${path}`;
-  };
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
